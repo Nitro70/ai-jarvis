@@ -28,7 +28,17 @@ class OpenAICompatBackend(LLMBackend):
         self._model = llm_cfg.get("model", "gpt-4o-mini")
         self._max_tokens = int(llm_cfg.get("max_tokens", 1024))
         self._tools_by_name: dict[str, Tool] = {t.name: t for t in tools}
-        self._tool_defs = [t.to_openai() for t in tools] or None
+        # Some local models (llama2 base, older Mistral, etc.) don't support
+        # OpenAI-style function calling. Sending `tools=` to them via Ollama
+        # either silently drops the calls or errors with "model does not
+        # support tools". Setting `disable_tools: true` in config.yaml's `llm:`
+        # section makes Jarvis run in chat-only mode — replies still work,
+        # but it can't call play_music / open_app / etc.
+        if llm_cfg.get("disable_tools"):
+            log.info("disable_tools=true in config — running chat-only, no tool calls")
+            self._tool_defs = None
+        else:
+            self._tool_defs = [t.to_openai() for t in tools] or None
         self._history: list[dict] = [{"role": "system", "content": system_prompt}]
         self._base_url = base_url
 

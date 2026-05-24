@@ -67,6 +67,11 @@ public partial class LlmView : UserControl
 
         BaseUrlPanel.Visibility = be == "openai_compat" ? Visibility.Visible : Visibility.Collapsed;
         ApiKeyPanel.Visibility  = be == "claude_agent" ? Visibility.Collapsed : Visibility.Visible;
+        DisableToolsPanel.Visibility = be == "openai_compat" ? Visibility.Visible : Visibility.Collapsed;
+        // The "(optional)" hint next to API Key only applies to openai_compat
+        // since claude_api always requires a real key.
+        ApiKeyOptionalLabel.Visibility =
+            be == "openai_compat" ? Visibility.Visible : Visibility.Collapsed;
 
         // Model dropdown items
         ModelCombo.Items.Clear();

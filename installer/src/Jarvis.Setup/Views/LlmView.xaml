@@ -41,7 +41,17 @@
 
             <!-- API key (claude_api + openai_compat) -->
             <StackPanel x:Name="ApiKeyPanel" Margin="0,16,0,0">
-                <TextBlock Text="API key" Margin="0,0,0,4"/>
+                <Grid Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="API key"/>
+                    <TextBlock x:Name="ApiKeyOptionalLabel" Grid.Column="1"
+                               Text=" (optional for Ollama / LM Studio)" Opacity="0.6"
+                               FontSize="11" VerticalAlignment="Bottom" Margin="6,0,0,2"
+                               Visibility="Collapsed"/>
+                </Grid>
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -55,6 +65,19 @@
                 </Grid>
                 <TextBox x:Name="ApiKeyVisible" Height="32" Margin="0,6,0,0" Visibility="Collapsed"
                          Text="{Binding Llm.ApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+            </StackPanel>
+
+            <!-- Tool-calling toggle (openai_compat only — for models without function-call support) -->
+            <StackPanel x:Name="DisableToolsPanel" Margin="0,12,0,0">
+                <CheckBox IsChecked="{Binding Llm.DisableTools, Mode=TwoWay}"
+                          Content="Disable tool calls (chat only)"/>
+                <TextBlock Margin="22,4,0,0" TextWrapping="Wrap" Opacity="0.65" FontSize="11">
+                    Tick this for older / smaller local models that don't support OpenAI-style
+                    function calling — llama2 base, llama2-uncensored, plain Mistral, etc.
+                    Jarvis still chats, but loses the ability to play music, open apps, control
+                    windows, etc. Llama-3.x, Mixtral, Qwen2.5, and most newer models do support
+                    tools — leave this off for those.
+                </TextBlock>
             </StackPanel>
 
             <!-- Model -->

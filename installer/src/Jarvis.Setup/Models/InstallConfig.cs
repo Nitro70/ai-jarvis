@@ -61,6 +61,12 @@ public class LlmConfig
     public string? BaseUrl { get; set; }
 
     public int MaxTokens { get; set; } = 1024;
+
+    /// <summary>If true, don't send `tools` to the API. Required for models
+    /// that don't support OpenAI-style function calling (e.g. llama2-based
+    /// models on Ollama). Jarvis still works for chat but loses the ability
+    /// to actually call tools like play_music, open_app, etc.</summary>
+    public bool DisableTools { get; set; } = false;
 }
 
 public class VoiceConfig

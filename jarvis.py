@@ -14,8 +14,18 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import os
 import sys
 from pathlib import Path
+
+# Suppress noisy huggingface_hub warnings that scare non-developers but are
+# not actionable: the symlinks warning ("activate Developer Mode or run Python
+# as administrator") is just saying the cache will copy files instead of
+# symlinking — works fine, uses more disk. The telemetry/HF_TOKEN nags are
+# also irrelevant for our use case.
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
+os.environ.setdefault("HF_HUB_DISABLE_IMPLICIT_TOKEN", "1")
 
 # Make our local packages importable when run from this directory.
 sys.path.insert(0, str(Path(__file__).parent))
@@ -105,10 +115,8 @@ async def run_voice_mode(config, llm_backend, log, tts):
     wake_model_size = stt_cfg.get("wake_model", "tiny.en")
     cmd_model_size = stt_cfg.get("model", "base.en")
 
-    print(f"Loading Whisper command model ({cmd_model_size})...", flush=True)
-    cmd_model = WhisperModel(cmd_model_size, device="cpu", compute_type="int8")
-    print(f"Loading Whisper wake model ({wake_model_size})...", flush=True)
-    wake_model = WhisperModel(wake_model_size, device="cpu", compute_type="int8")
+    cmd_model = _load_whisper_with_recovery(cmd_model_size, "command")
+    wake_model = _load_whisper_with_recovery(wake_model_size, "wake-word")
 
     # Warm up CTranslate2's lazy init so the FIRST real transcription isn't slow
     # (otherwise saying "jarvis" the first time can stall 5-15 seconds while

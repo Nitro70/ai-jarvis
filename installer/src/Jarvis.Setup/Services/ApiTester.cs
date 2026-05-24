@@ -103,11 +103,21 @@ public static class ApiTester
     {
         if (string.IsNullOrWhiteSpace(cfg.BaseUrl))
             return new Result(false, "Base URL is empty.");
-        if (string.IsNullOrWhiteSpace(cfg.ApiKey))
-            return new Result(false, "API key is empty.");
+
+        // Local servers (Ollama, LM Studio, llama.cpp, etc.) don't use API
+        // keys. Only require one for remote URLs. Matches the Python
+        // openai_compat backend's "not-needed" fallback.
+        var isLocal = cfg.BaseUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase)
+                   || cfg.BaseUrl.Contains("127.0.0.1")
+                   || cfg.BaseUrl.Contains("0.0.0.0")
+                   || cfg.BaseUrl.Contains("://[::1]");
+        if (!isLocal && string.IsNullOrWhiteSpace(cfg.ApiKey))
+            return new Result(false, "API key is empty (required for non-local URLs).");
 
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
-        http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", cfg.ApiKey);
+        // Send a bearer token if we have one; local servers usually ignore it.
+        var key = string.IsNullOrWhiteSpace(cfg.ApiKey) ? "not-needed" : cfg.ApiKey;
+        http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", key);
 
         var body = new
         {
@@ -117,12 +127,21 @@ public static class ApiTester
         };
 
         var url = cfg.BaseUrl.TrimEnd('/') + "/chat/completions";
-        using var resp = await http.PostAsJsonAsync(url, body, ct);
-        if (resp.IsSuccessStatusCode)
-            return new Result(true, $"OK ({cfg.Model} via {cfg.BaseUrl})");
+        try
+        {
+            using var resp = await http.PostAsJsonAsync(url, body, ct);
+            if (resp.IsSuccessStatusCode)
+                return new Result(true, $"OK ({cfg.Model} via {cfg.BaseUrl})");
 
-        var err = await resp.Content.ReadAsStringAsync(ct);
-        return new Result(false, $"HTTP {(int)resp.StatusCode}: {Truncate(err, 250)}");
+            var err = await resp.Content.ReadAsStringAsync(ct);
+            return new Result(false, $"HTTP {(int)resp.StatusCode}: {Truncate(err, 250)}");
+        }
+        catch (HttpRequestException e) when (isLocal)
+        {
+            return new Result(false,
+                $"Couldn't reach {cfg.BaseUrl}. Is your local server (Ollama / LM Studio) running? " +
+                $"({e.Message})");
+        }
     }
 
     private static string Truncate(string s, int max) =>

@@ -48,6 +48,8 @@ public static class ConfigYamlWriter
         if (!string.IsNullOrWhiteSpace(cfg.Llm.ApiKey))
             sb.AppendLine($"  api_key: \"{Escape(cfg.Llm.ApiKey!)}\"");
         sb.AppendLine($"  max_tokens: {cfg.Llm.MaxTokens}");
+        if (cfg.Llm.DisableTools)
+            sb.AppendLine("  disable_tools: true   # model doesn't support OpenAI tool-calling");
         sb.AppendLine();
 
         // ---- Persona ----
