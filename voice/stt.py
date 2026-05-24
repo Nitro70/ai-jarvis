@@ -46,6 +46,45 @@ def _last_speech_end_seconds(audio: np.ndarray) -> float | None:
         return None
 
 
+def warm_up(model: WhisperModel) -> None:
+    """Force CTranslate2 to JIT/load kernels now, not on the first real call.
+
+    Without this, the very first wake-word transcription can stall for 5-15
+    seconds while CT2 initializes itself — which makes Jarvis look frozen the
+    first time you say 'jarvis'."""
+    silence = np.zeros(SAMPLE_RATE, dtype=np.float32)  # 1 s of zeros
+    segs, _ = model.transcribe(silence, language="en", beam_size=1, vad_filter=False)
+    list(segs)  # iterate to actually run inference
+
+
+def check_microphone(duration: float = 0.5) -> tuple[float, str]:
+    """Capture briefly from the default input device and return (peak_amplitude, device_name).
+
+    A live mic returns a non-zero peak even in 'silence' (self-noise).
+    A device that's not actually capturing (wrong device, disabled, no
+    permission) returns literal zeros."""
+    try:
+        device_info = sd.query_devices(kind="input")
+        name = device_info.get("name", "(unknown)") if isinstance(device_info, dict) else str(device_info)
+    except Exception:
+        name = "(unknown)"
+    samples = sd.rec(int(duration * SAMPLE_RATE), samplerate=SAMPLE_RATE,
+                     channels=1, dtype="float32", blocking=True)
+    return float(np.abs(samples).max()), name
+
+
+def list_input_devices() -> list[tuple[int, str]]:
+    """For diagnostic output when the default mic isn't capturing."""
+    out = []
+    try:
+        for i, d in enumerate(sd.query_devices()):
+            if d.get("max_input_channels", 0) > 0:
+                out.append((i, d.get("name", f"device {i}")))
+    except Exception:
+        pass
+    return out
+
+
 def transcribe(audio: np.ndarray, model: WhisperModel, with_vad: bool = True) -> str:
     if audio.size == 0:
         return ""
@@ -86,19 +125,34 @@ class VoiceListener:
         self.max_command_seconds = max_command_seconds
         self.command_giveup_seconds = command_giveup_seconds
 
-    async def wait_for_wake(self) -> None:
-        """Block until the wake word is heard, then return."""
+    async def wait_for_wake(self, verbose: bool = True) -> None:
+        """Block until the wake word is heard, then return.
+
+        If `verbose`, print a 'listening' line and echo every transcribed
+        snippet to stdout so the user can tell:
+          - the mic is being heard at all
+          - what Whisper thinks they said
+        That's the difference between 'Jarvis is broken' and 'Jarvis didn't
+        match my mumbled wake word'.
+        """
         log.info("entering wake-word listen mode")
+        if verbose:
+            print(f"🎤 Listening for '{self.wake_words[0]}'... "
+                  f"(Ctrl+C to quit)", flush=True)
         buf = np.zeros(0, dtype=np.float32)
         buf_lock = threading.Lock()
         max_buffer_samples = int(SAMPLE_RATE * (self.wake_listen_seconds + 1.0))
+        ever_heard_audio = False
+        loop_start = time.monotonic()
 
         def cb(indata, _frames, _time, _status):
-            nonlocal buf
+            nonlocal buf, ever_heard_audio
             with buf_lock:
                 buf = np.concatenate([buf, indata.flatten()])
                 if buf.size > max_buffer_samples:
                     buf = buf[-max_buffer_samples:]
+                if not ever_heard_audio and float(np.abs(indata).max()) > 1e-4:
+                    ever_heard_audio = True
 
         with sd.InputStream(
             samplerate=SAMPLE_RATE, channels=1, dtype="float32",
@@ -106,6 +160,17 @@ class VoiceListener:
         ):
             while True:
                 await asyncio.sleep(self.wake_check_interval)
+
+                # If 4 seconds in we've literally never seen non-zero audio,
+                # the mic isn't capturing. Warn once and keep trying so the
+                # user has a fighting chance to fix it without restarting.
+                if verbose and not ever_heard_audio \
+                        and time.monotonic() - loop_start > 4.0:
+                    print("⚠  No audio detected from your microphone yet — "
+                          "check Windows Sound settings (Input device, mic "
+                          "permission, mute switch).", flush=True)
+                    loop_start = time.monotonic() + 999  # only warn once
+
                 with buf_lock:
                     snapshot = buf.copy()
                 if snapshot.size < int(SAMPLE_RATE * 0.7):
@@ -125,6 +190,10 @@ class VoiceListener:
                     with buf_lock:
                         buf = np.zeros(0, dtype=np.float32)
                     return
+                elif verbose:
+                    # Echo every transcribed snippet so the user can see their
+                    # voice is reaching Whisper, just no wake word matched.
+                    print(f"   …heard: {text!r}", flush=True)
 
     async def record_command(self) -> np.ndarray:
         """Record audio until silence-after-speech or hard cap."""

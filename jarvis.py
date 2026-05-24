@@ -87,7 +87,9 @@ async def run_voice_mode(config, llm_backend, log, tts):
     """Wake word → record → transcribe → query → TTS → loop."""
     try:
         from faster_whisper import WhisperModel
-        from voice.stt import VoiceListener
+        from voice.stt import (
+            VoiceListener, warm_up, check_microphone, list_input_devices,
+        )
     except ImportError as e:
         print(
             f"\nCan't start voice mode — missing dependency: {e}\n"
@@ -107,6 +109,36 @@ async def run_voice_mode(config, llm_backend, log, tts):
     cmd_model = WhisperModel(cmd_model_size, device="cpu", compute_type="int8")
     print(f"Loading Whisper wake model ({wake_model_size})...", flush=True)
     wake_model = WhisperModel(wake_model_size, device="cpu", compute_type="int8")
+
+    # Warm up CTranslate2's lazy init so the FIRST real transcription isn't slow
+    # (otherwise saying "jarvis" the first time can stall 5-15 seconds while
+    # CT2 compiles its kernels in the background).
+    print("Warming up Whisper...", flush=True)
+    await asyncio.to_thread(warm_up, wake_model)
+    await asyncio.to_thread(warm_up, cmd_model)
+
+    # Quick mic sanity check. If the default input device returns literal zeros,
+    # the mic isn't capturing — surface this loudly with device-picker hints
+    # instead of letting the wake-word loop sit silently forever.
+    print("Checking microphone...", flush=True)
+    try:
+        peak, device_name = await asyncio.to_thread(check_microphone, 0.5)
+    except Exception as e:
+        print(f"⚠  Microphone check failed: {e}", flush=True)
+        peak, device_name = 0.0, "(error)"
+    if peak <= 0.0:
+        print(f"⚠  Default input device '{device_name}' produced silence — "
+              "voice mode won't hear you.", flush=True)
+        print("   Available input devices on this machine:", flush=True)
+        for idx, name in list_input_devices():
+            print(f"     [{idx}] {name}", flush=True)
+        print("   Fix in Windows: Settings → System → Sound → Input → pick a "
+              "real mic, allow apps to use the microphone.", flush=True)
+        print("   (Continuing anyway — fix the mic and the wake-word loop "
+              "will pick it up.)\n", flush=True)
+    else:
+        print(f"✓ Microphone OK: '{device_name}' "
+              f"(peak {peak:.3f})", flush=True)
 
     wake_word = voice_cfg.get("wake_word", "jarvis")
     variants = tuple(voice_cfg.get("wake_word_variants") or [wake_word])
