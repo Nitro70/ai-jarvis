@@ -1,0 +1,34 @@
+<Page x:Class="Jarvis.Installer.Pages.InstallProgressPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Title="Installing">
+    <Grid Background="White" Margin="40,30">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <TextBlock Grid.Row="0" Text="Installing Jarvis"
+                   FontSize="22" FontWeight="SemiBold" Margin="0,0,0,16"/>
+        <TextBlock Grid.Row="1" x:Name="StepText" Margin="0,0,0,8" Opacity="0.85"
+                   Text="Preparing..."/>
+        <ProgressBar Grid.Row="2" x:Name="Progress" Height="8"
+                     Minimum="0" Maximum="100" Value="0"/>
+        <TextBlock Grid.Row="3" Margin="0,18,0,6" Opacity="0.6" FontSize="11"
+                   Text="Log:"/>
+        <Border Grid.Row="4" BorderBrush="#DDDDDD" BorderThickness="1"
+                Background="#FAFAFA" CornerRadius="3">
+            <ScrollViewer x:Name="LogScroll" VerticalScrollBarVisibility="Auto">
+                <TextBox x:Name="LogText" IsReadOnly="True" BorderThickness="0"
+                         Background="Transparent"
+                         FontFamily="Consolas" FontSize="11"
+                         TextWrapping="NoWrap"
+                         VerticalScrollBarVisibility="Disabled"
+                         HorizontalScrollBarVisibility="Auto"
+                         Padding="8,6"/>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</Page>

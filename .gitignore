@@ -43,3 +43,11 @@ Thumbs.db
 
 # run.bat install marker
 .install-stamp
+
+# .NET build artifacts (installer/)
+bin/
+obj/
+publish/
+*.user
+*.suo
+.vs/

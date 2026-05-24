@@ -1,0 +1,74 @@
+name: Build installer
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+    paths:
+      - 'installer/**'
+      - '.github/workflows/installer.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        working-directory: installer
+        run: dotnet restore Jarvis.Installer.sln
+
+      - name: Publish JarvisSettings.exe
+        working-directory: installer
+        run: >
+          dotnet publish src/Jarvis.Settings/Jarvis.Settings.csproj
+          -c Release -r win-x64
+          --self-contained
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -o publish/settings
+
+      - name: Publish JarvisInstaller.exe
+        working-directory: installer
+        run: >
+          dotnet publish src/Jarvis.Installer/Jarvis.Installer.csproj
+          -c Release -r win-x64
+          --self-contained
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -o publish/installer
+
+      - name: Stage artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path artifacts -Force | Out-Null
+          Copy-Item installer/publish/installer/JarvisInstaller.exe artifacts/
+          Copy-Item installer/publish/settings/JarvisSettings.exe   artifacts/
+          Get-ChildItem artifacts | Format-Table Name, Length
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-installer
+          path: artifacts/*.exe
+          if-no-files-found: error
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.exe
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Jarvis.Installer</RootNamespace>
+    <AssemblyName>JarvisInstaller</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- ApplicationIcon>Assets\jarvis.ico</ApplicationIcon -->
+    <!-- Single-file self-contained publish settings (used by `dotnet publish`): -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Jarvis.Setup\Jarvis.Setup.csproj" />
+  </ItemGroup>
+</Project>

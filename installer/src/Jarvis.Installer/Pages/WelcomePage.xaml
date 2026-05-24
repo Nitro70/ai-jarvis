@@ -1,0 +1,27 @@
+<Page x:Class="Jarvis.Installer.Pages.WelcomePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Title="Welcome">
+    <Grid Background="White">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                    MaxWidth="560" Margin="40">
+            <TextBlock Text="Welcome to Jarvis"
+                       FontSize="32" FontWeight="Light" Margin="0,0,0,8"/>
+            <TextBlock TextWrapping="Wrap" FontSize="14" Opacity="0.8" Margin="0,0,0,18">
+                A personal voice and text assistant inspired by Tony Stark's AI.
+                This installer will:
+            </TextBlock>
+            <StackPanel Margin="20,0,0,20">
+                <TextBlock Text="•  Install Python 3.12 if you don't already have a compatible version." TextWrapping="Wrap" Margin="0,4"/>
+                <TextBlock Text="•  Download the Jarvis source from GitHub." TextWrapping="Wrap" Margin="0,4"/>
+                <TextBlock Text="•  Install Python dependencies (one-time, a few minutes)." TextWrapping="Wrap" Margin="0,4"/>
+                <TextBlock Text="•  Ask you which AI backend, voice, and tools you want." TextWrapping="Wrap" Margin="0,4"/>
+                <TextBlock Text="•  Create Start Menu shortcuts." TextWrapping="Wrap" Margin="0,4"/>
+            </StackPanel>
+            <TextBlock TextWrapping="Wrap" Opacity="0.65" FontSize="12">
+                Per-user install — no administrator prompt.
+                You can change every setting later via "Jarvis Settings" in the Start Menu.
+            </TextBlock>
+        </StackPanel>
+    </Grid>
+</Page>
