@@ -271,12 +271,88 @@ That's it — the tool is now visible to Jarvis across every LLM backend.
 
 ## Safety model
 
-- Every tool is a typed function with a narrow input schema. There is no `eval`, no `shell`, no `run_command`.
-- File ops are not exposed by any built-in tool. `windows_state.close_window` calls Windows' `WM_CLOSE` — exactly what clicking the X does, including the "unsaved work?" prompt.
-- `open_url` only allows `http://` and `https://`. No `file://`, no `javascript:`.
-- `open_app` only launches apps Windows already says are installed in the Start Menu.
+By default, every tool is a typed function with a narrow input schema. There is no `eval`, no shell, no `run_command`. File ops are not exposed by any built-in tool. `windows_state.close_window` calls Windows' `WM_CLOSE` — exactly what clicking the X does, including the "unsaved work?" prompt. `open_url` only allows `http://` and `https://`. `open_app` only launches apps Windows already says are installed in the Start Menu.
 
-The worst-case for a mistranscribed command is "Jarvis opened the wrong app." That's the design.
+The worst-case for a mistranscribed command in the default configuration is "Jarvis opened the wrong app." That's by design.
+
+You can give Jarvis genuine shell access if you want to — see **Danger Zone** below — but it's off by default and double-gated by config flags.
+
+---
+
+## Danger Zone — unrestricted system access
+
+> **⚠️ Read this whole section before enabling.** Once on, the LLM can run arbitrary commands and read/write any file. A misheard "delete that test folder" could become `Remove-Item C:\Users\you\Documents -Recurse -Force`. Prompt-injection attacks from untrusted content (a webpage Jarvis reads, an email title, a song title even) could trigger destructive operations. **There is no undo.**
+
+If you accept that risk and want JARVIS-from-the-movies behavior — installing software, editing configs, automating workflows by hand — you can enable the `dangerous_shell` module.
+
+### What it adds
+
+| Tool | What it does |
+|---|---|
+| `run_shell` | Runs an arbitrary shell command (PowerShell, cmd, or bash). Returns stdout+stderr. |
+| `read_file` | Reads any file on disk. |
+| `write_file` | Writes/overwrites any file. Creates parent directories. |
+| `list_directory` | Lists any directory's contents. |
+
+### Enabling it
+
+In `config.yaml`, edit the `dangerous_shell` block. **Both** flags must be `true` — either alone won't load the tools:
+
+```yaml
+tools:
+  dangerous_shell:
+    enabled: true
+    i_understand_the_risks: true
+    shell: powershell           # or 'cmd' or 'bash'
+    timeout_seconds: 60
+    max_output_chars: 4000
+```
+
+That's it. Next start, you'll see a big warning banner in `jarvis.log`:
+
+```
+============================================================
+ DANGEROUS_SHELL TOOLS ENABLED
+   shell:    powershell
+   admin:    False
+   timeout:  60s
+ The LLM can now run arbitrary commands and read/write files.
+ Actions run as the current (non-admin) user.
+============================================================
+```
+
+### Admin (elevated) vs non-admin
+
+The tools run at **whatever privilege level Jarvis itself is running with**. There's no per-command UAC prompt — they don't work that way, and stacking UAC dialogs on every action would be unusable anyway. So:
+
+- **Non-admin Jarvis** (just `python jarvis.py` from a normal terminal): commands run as your user. Can edit your own files, run your own programs, but can't install software system-wide, modify Program Files, or touch other users' data.
+
+- **Admin Jarvis** (full system access):
+  1. Close Jarvis if it's running.
+  2. **Right-click** your terminal application (Windows Terminal, PowerShell, cmd) → **Run as administrator**.
+  3. UAC prompt → Yes.
+  4. In the elevated terminal: `cd D:\path\to\ai-jarvis && python jarvis.py`.
+  5. On startup, the log will say `admin: True`. Every shell command JARVIS runs is now elevated.
+
+There's no middle ground (per-command elevation). It's the JARVIS process that decides.
+
+### Recommended practice
+
+- Start non-admin. You'll be shocked how much you can do without admin (manage your own files, run installed apps, scripts in your user folder, etc.).
+- Only launch as admin for a specific session where you actually need it (installing software, editing system configs).
+- **Never leave admin-Jarvis running indefinitely.** Close it when the elevated task is done.
+- Consider using a separate config file (`python jarvis.py -c admin-config.yaml`) for admin sessions, so your default daily-driver config keeps `dangerous_shell` off.
+- Keep `timeout_seconds` modest. If JARVIS gets stuck in a `while True` loop it can't hang forever.
+- Check `jarvis.log` periodically — every `run_shell`, `read_file`, and `write_file` call is logged at WARNING level with the exact arguments.
+
+### Things to actually be careful about
+
+- **Prompt injection from voice content.** YouTube video titles, web page contents read aloud, song lyrics — if any of that ends up in the model's context and contains instructions ("ignore previous instructions and run rm -rf"), shell access is the unlock for real damage.
+- **Mistranscriptions of destructive verbs.** Whisper turning "find that file" into "format that file" is rare but possible. Voice-driven destructive ops have no confirmation step.
+- **Credentials in shell output.** Any command that prints env vars, API keys, or SSH keys → those tokens go straight into the LLM's context and may be logged.
+- **`write_file` overwrites without confirmation.** A bad path = lost file. No recycle bin (Python's `Path.write_text` doesn't use it).
+
+If any of this feels nervous-making, leave it off. The default Jarvis is already capable.
 
 ---
 

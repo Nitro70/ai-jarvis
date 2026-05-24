@@ -161,6 +161,43 @@ tools:
     enabled: true
 
 
+  # =======================================================================
+  #  ⚠️  DANGER ZONE — read carefully before enabling
+  # =======================================================================
+  # The dangerous_shell tools give the LLM full shell access (run_shell)
+  # and read/write access to any file on disk (read_file / write_file /
+  # list_directory). This is the kind of capability JARVIS-from-the-movies
+  # has, and the kind that can wipe your data if Whisper mishears you, if
+  # a prompt injection lands, or if the model just makes a mistake.
+  #
+  # To enable, you MUST set BOTH flags below to true. Either one alone is
+  # not enough — that's intentional friction.
+  #
+  # Admin / elevation:
+  #   These tools run at whatever privilege level Jarvis itself is running
+  #   at. To give Jarvis admin access, right-click your terminal →
+  #   Run as administrator BEFORE starting jarvis.py. The admin status is
+  #   logged at startup.
+  #
+  # See the README's "Danger Zone" section for the full risk discussion.
+  # =======================================================================
+  dangerous_shell:
+    enabled: false                  # off by default
+    i_understand_the_risks: false   # MUST also be true for tools to load
+
+    # Which shell to use for run_shell. Windows: 'powershell' or 'cmd'.
+    # Linux/macOS: 'bash' (or 'sh', 'zsh', etc.).
+    shell: powershell
+
+    # Hard timeout per command. Keep modest — a runaway loop would otherwise
+    # hang Jarvis. Bump if you legitimately need long-running commands.
+    timeout_seconds: 60
+
+    # Max chars of stdout+stderr returned to the LLM. Truncated tail is
+    # marked. Prevents huge outputs from blowing up your context.
+    max_output_chars: 4000
+
+
 # =========================================================================
 # Logging
 # =========================================================================
