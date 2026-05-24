@@ -8,6 +8,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -23,10 +24,20 @@ You can leave it blank for now and edit it in Settings later."/>
                   IsChecked="{Binding Memory.Enabled, Mode=TwoWay}"
                   Content="Give Jarvis a memory file"/>
 
-        <TextBlock Grid.Row="3" Margin="0,0,0,4" Opacity="0.7" FontSize="11"
+        <Border x:Name="ExistingNotice" Grid.Row="3" Visibility="Collapsed"
+                Background="#FFFCE8" BorderBrush="#E0B000" BorderThickness="1"
+                CornerRadius="4" Padding="12,8" Margin="0,0,0,8">
+            <TextBlock TextWrapping="Wrap" FontSize="12">
+                <Run FontWeight="SemiBold">Loaded your existing memory.md</Run>
+                — your accumulated notes are preserved. Edit the textbox below to
+                change it; leave it alone to keep your existing memory exactly as-is.
+            </TextBlock>
+        </Border>
+
+        <TextBlock Grid.Row="4" Margin="0,0,0,4" Opacity="0.7" FontSize="11"
                    Text="Markdown is fine. Empty lines and headings (# Personal info) are encouraged."/>
 
-        <TextBox Grid.Row="4" x:Name="MemoryBox"
+        <TextBox Grid.Row="5" x:Name="MemoryBox"
                  AcceptsReturn="True" AcceptsTab="True"
                  TextWrapping="Wrap"
                  VerticalScrollBarVisibility="Auto"
