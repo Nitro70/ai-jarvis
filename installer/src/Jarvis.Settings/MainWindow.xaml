@@ -36,6 +36,9 @@
             <TabItem Header="Tools">
                 <views:ToolsView x:Name="ToolsTab"/>
             </TabItem>
+            <TabItem Header="Updates">
+                <views:UpdateView x:Name="UpdateTab"/>
+            </TabItem>
         </TabControl>
 
         <Border Grid.Row="2" Background="#EFEFEF" Padding="20,12"

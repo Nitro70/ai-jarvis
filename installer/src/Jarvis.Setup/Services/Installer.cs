@@ -74,6 +74,9 @@ public static class Installer
 
         // 4. Write config + memory + install-info pointer
         step.Report("Writing config");
+        // Stamp the installed version from the installer's assembly so the
+        // Settings update tab can compare it against the latest GitHub release.
+        cfg.Version ??= typeof(Installer).Assembly.GetName().Version?.ToString(3);
         ConfigYamlWriter.Write(cfg);
         InstallLocator.Save(cfg);
 

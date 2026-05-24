@@ -34,10 +34,14 @@ public partial class MainWindow : Window
 
         InstallDirLabel.Text = _cfg.InstallDir;
 
+        // Sweep up any leftover JarvisSettings.exe.old left by a prior update.
+        Updater.CleanupOldSettingsExe(_cfg.InstallDir);
+
         LlmTab.Bind(_cfg);
         VoiceTab.Bind(_cfg);
         MemoryTab.Bind(_cfg);
         ToolsTab.Bind(_cfg);
+        UpdateTab.Bind(_cfg);
     }
 
     private void Save_Click(object sender, RoutedEventArgs e)

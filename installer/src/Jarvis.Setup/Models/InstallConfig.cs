@@ -17,6 +17,10 @@ public class InstallConfig
 {
     public string InstallDir { get; set; } = "";
 
+    /// <summary>Set by the installer/updater. Compared against the latest
+    /// GitHub release tag to decide whether an update is available.</summary>
+    public string? Version { get; set; }
+
     /// <summary>"voice" or "text".</summary>
     public string Mode { get; set; } = "voice";
 
