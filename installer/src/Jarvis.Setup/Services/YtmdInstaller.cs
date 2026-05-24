@@ -78,8 +78,8 @@ public static class YtmdInstaller
             await DownloadFileAsync(assetUrl, installerPath, wrappedPct, ct);
             log?.Report($"  downloaded in {(DateTime.UtcNow - dlStart).TotalSeconds:F0}s");
 
-            // ----- Silent install with heartbeat -----
-            log?.Report("Installing YouTube Music (silent, ~20-40 seconds)...");
+            // ----- Silent install with heartbeat + concurrent app-killer -----
+            log?.Report("Installing YouTube Music (silent — the app may briefly flash open; we'll close it automatically)...");
             var psi = new ProcessStartInfo
             {
                 FileName = installerPath,
@@ -93,23 +93,50 @@ public static class YtmdInstaller
                           ?? throw new InvalidOperationException(
                               "Failed to start YouTube Music installer.");
 
+            using var bgCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+
             // Heartbeat — print a dot-line every 5 seconds so the user can
             // tell the install isn't frozen.
-            using var heartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             var heartbeat = Task.Run(async () =>
             {
                 var t0 = DateTime.UtcNow;
-                while (!heartbeatCts.IsCancellationRequested)
+                while (!bgCts.IsCancellationRequested)
                 {
-                    try { await Task.Delay(5000, heartbeatCts.Token); }
+                    try { await Task.Delay(5000, bgCts.Token); }
                     catch { break; }
                     log?.Report($"  ...still installing ({(DateTime.UtcNow - t0).TotalSeconds:F0}s)");
                 }
-            }, heartbeatCts.Token);
+            }, bgCts.Token);
+
+            // App-killer — poll for the YouTube Music process every 500 ms
+            // and kill it as soon as it appears. electron-builder's NSIS
+            // auto-launches the app partway through the install; without this
+            // it sits visible for 15-30s until NSIS finally exits.
+            var appKiller = Task.Run(async () =>
+            {
+                int killedCount = 0;
+                while (!bgCts.IsCancellationRequested)
+                {
+                    try { await Task.Delay(500, bgCts.Token); }
+                    catch { break; }
+                    var killed = KillYouTubeMusicProcesses(silent: true);
+                    if (killed > 0)
+                    {
+                        killedCount += killed;
+                        log?.Report($"  closed auto-launched YouTube Music ({killedCount} so far)");
+                    }
+                }
+            }, bgCts.Token);
 
             await p.WaitForExitAsync(ct);
-            heartbeatCts.Cancel();
-            try { await heartbeat; } catch { }
+
+            // Give the killer one more sweep right after NSIS exits, in case
+            // it launched the app on the very last tick.
+            await Task.Delay(500, ct);
+            KillYouTubeMusicProcesses(silent: false, log: log);
+
+            bgCts.Cancel();
+            try { await Task.WhenAll(heartbeat, appKiller); } catch { }
 
             if (p.ExitCode != 0)
                 throw new InvalidOperationException(
@@ -131,12 +158,6 @@ public static class YtmdInstaller
                 $"YouTube Music installer reported success but the exe was " +
                 $"not found at {ExpectedInstallPath}. " +
                 "It may have installed to a non-default location.");
-
-        // electron-builder's NSIS auto-launches the app post-install (it's
-        // baked into the installer template — no flag to suppress). Kill it
-        // so it doesn't sit running uninvited; Jarvis (or the user) will
-        // start it when actually needed.
-        KillYouTubeMusicProcesses(log);
 
         log?.Report($"YouTube Music installed at {ExpectedInstallPath}");
         return ExpectedInstallPath;
@@ -213,15 +234,21 @@ public static class YtmdInstaller
         }
     }
 
-    private static void KillYouTubeMusicProcesses(IProgress<string>? log)
+    /// <summary>
+    /// Returns the number of processes actually killed. If `silent`, no log
+    /// chatter even on errors — used by the polling watcher to avoid spamming.
+    /// </summary>
+    private static int KillYouTubeMusicProcesses(bool silent = false, IProgress<string>? log = null)
     {
+        int killed = 0;
         try
         {
             // The Electron app's exe name is "YouTube Music" (with space).
             // GetProcessesByName takes the name without .exe.
             var procs = Process.GetProcessesByName("YouTube Music");
-            if (procs.Length == 0) return;
-            log?.Report($"  closing {procs.Length} auto-launched YouTube Music process(es)...");
+            if (procs.Length == 0) return 0;
+            if (!silent)
+                log?.Report($"  closing {procs.Length} YouTube Music process(es)...");
             foreach (var proc in procs)
             {
                 try
@@ -229,19 +256,21 @@ public static class YtmdInstaller
                     if (!proc.HasExited)
                     {
                         proc.Kill(entireProcessTree: true);
-                        proc.WaitForExit(5000);
+                        proc.WaitForExit(3000);
+                        killed++;
                     }
                 }
                 catch (Exception e)
                 {
-                    log?.Report($"  (couldn't close PID {proc.Id}: {e.Message})");
+                    if (!silent) log?.Report($"  (couldn't close PID {proc.Id}: {e.Message})");
                 }
                 finally { proc.Dispose(); }
             }
         }
         catch (Exception e)
         {
-            log?.Report($"  (post-install cleanup skipped: {e.Message})");
+            if (!silent) log?.Report($"  (kill sweep skipped: {e.Message})");
         }
+        return killed;
     }
 }
