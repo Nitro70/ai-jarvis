@@ -141,7 +141,7 @@ Get-ChildItem $inner.FullName -Recurse | ForEach-Object {
             Copy-Item $_.FullName -Destination $target -Force
             $copied++
         } catch {
-            Write-Warn "  (skipped $rel: $($_.Exception.Message))"
+            Write-Warn "  (skipped ${rel}: $($_.Exception.Message))"
         }
     }
 }
