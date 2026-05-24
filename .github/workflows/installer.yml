@@ -11,6 +11,10 @@ on:
       - '.github/workflows/installer.yml'
   workflow_dispatch:
 
+# softprops/action-gh-release needs write access to create/edit releases.
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
