@@ -1,0 +1,3 @@
+# YouTube Music tool (music_ytmd). Requires the th-ch/youtube-music desktop
+# app installed separately — see README.
+ytmusicapi>=1.7.0

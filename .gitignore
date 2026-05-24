@@ -1,0 +1,42 @@
+# Local config (user copies from config.example.yaml)
+config.yaml
+config.local.yaml
+
+# Personal memory file (user copies from memory.example.md)
+memory.md
+
+# Secrets / tokens
+.env
+.ytmd_token
+*.token
+
+# Logs
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Models / caches
+.cache/
+models/
+
+# Binaries we don't bundle
+youtube-music.exe
+*.exe
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp

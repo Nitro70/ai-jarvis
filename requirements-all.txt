@@ -1,0 +1,7 @@
+# Everything. Just `pip install -r requirements-all.txt` if you don't want
+# to think about which profile you need.
+-r requirements.txt
+-r requirements-llm.txt
+-r requirements-voice.txt
+-r requirements-music.txt
+-r requirements-web.txt

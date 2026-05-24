@@ -1,0 +1,10 @@
+# LLM backends — install one or more depending on which you use.
+
+# For backend: claude_agent  (uses your Claude subscription, no API key)
+claude-agent-sdk>=0.2.0
+
+# For backend: claude_api  (uses Anthropic API key)
+anthropic>=0.40.0
+
+# For backend: openai_compat  (OpenAI, xAI/Grok, Groq, Ollama, LM Studio, ...)
+openai>=1.50.0
