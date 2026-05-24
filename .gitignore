@@ -24,9 +24,10 @@ env/
 .mypy_cache/
 .ruff_cache/
 
-# Models / caches
+# Models / caches (Whisper model cache at repo root only — leading slash
+# prevents matching the installer's C# Jarvis.Setup/Models/ folder)
 .cache/
-models/
+/models/
 
 # Binaries we don't bundle
 youtube-music.exe
