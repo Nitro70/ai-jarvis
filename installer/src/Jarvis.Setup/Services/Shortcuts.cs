@@ -39,6 +39,21 @@ public static class Shortcuts
             "pause\r\n",
             new UTF8Encoding(false));
 
+        // 1c. An uninstall.cmd in the install dir for easy double-click removal.
+        //     Important: cd to %TEMP% FIRST so this cmd.exe isn't holding the
+        //     install dir as its working directory while the PS script tries
+        //     to delete it.
+        var uninstallCmd = Path.Combine(cfg.InstallDir, "uninstall.cmd");
+        File.WriteAllText(uninstallCmd,
+            "@echo off\r\n" +
+            "REM Uninstalls Jarvis. Backs up your config + memory to Documents\r\n" +
+            "REM first (you'll be asked). Doesn't touch Python or YT Music.\r\n" +
+            "cd /d \"%TEMP%\"\r\n" +
+            "powershell -NoProfile -ExecutionPolicy Bypass -Command " +
+            "\"irm https://raw.githubusercontent.com/Nitro70/ai-jarvis/main/uninstall.ps1 | iex\"\r\n" +
+            "pause\r\n",
+            new UTF8Encoding(false));
+
         // 2. Settings launcher (JarvisSettings.exe lives next to jarvis.py
         //    after the installer copies it there — see Installer + GitHub release).
         var settingsExe = Path.Combine(cfg.InstallDir, "JarvisSettings.exe");
@@ -50,6 +65,9 @@ public static class Shortcuts
             MakeShortcut(Path.Combine(startMenu, "Jarvis Settings.lnk"),
                          settingsExe, cfg.InstallDir, "Edit Jarvis configuration.");
         }
+        MakeShortcut(Path.Combine(startMenu, "Uninstall Jarvis.lnk"),
+                     Path.Combine(cfg.InstallDir, "uninstall.cmd"),
+                     cfg.InstallDir, "Uninstall Jarvis (keeps your config backup).");
     }
 
     private static void MakeShortcut(string lnkPath, string target, string workingDir, string description)
