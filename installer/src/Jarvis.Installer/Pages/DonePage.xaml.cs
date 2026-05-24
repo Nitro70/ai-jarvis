@@ -21,6 +21,11 @@ public partial class DonePage : Page, IWizardPage
     {
         _cfg = cfg;
         InstallPathText.Text = $"Installed to:\n{cfg.InstallDir}";
+
+        // Show the YT Music API-Server-plugin reminder only if we actually
+        // installed the YT Music app.
+        if (!string.IsNullOrWhiteSpace(cfg.Tools.MusicYtmdExePath))
+            YtmdNote.Visibility = System.Windows.Visibility.Visible;
     }
 
     public Task<bool> OnNextAsync()

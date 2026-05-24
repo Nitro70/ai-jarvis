@@ -97,7 +97,14 @@ public class ToolsConfig
     public bool Memory { get; set; } = true;
     public bool SystemInfo { get; set; } = true;
     public bool WebBrowser { get; set; } = true;
+
     public bool MusicYtmd { get; set; } = false;
+    /// <summary>Filled in by YtmdInstaller after a successful silent install.</summary>
+    public string? MusicYtmdExePath { get; set; }
+    /// <summary>If MusicYtmd is true AND this is true, the installer
+    /// auto-downloads + silently installs the th-ch/youtube-music app.</summary>
+    public bool MusicYtmdAutoInstall { get; set; } = true;
+
     public bool WindowsApps { get; set; } = true;
     public bool WindowsState { get; set; } = true;
 

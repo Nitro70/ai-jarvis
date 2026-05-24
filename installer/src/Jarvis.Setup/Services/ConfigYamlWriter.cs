@@ -90,7 +90,10 @@ public static class ConfigYamlWriter
         sb.AppendLine("  music_ytmd:");
         sb.AppendLine($"    enabled: {Bool(cfg.Tools.MusicYtmd)}");
         sb.AppendLine("    port: 26538");
-        sb.AppendLine("    exe_path: null");
+        if (!string.IsNullOrWhiteSpace(cfg.Tools.MusicYtmdExePath))
+            sb.AppendLine($"    exe_path: \"{Escape(cfg.Tools.MusicYtmdExePath!)}\"");
+        else
+            sb.AppendLine("    exe_path: null");
         sb.AppendLine("  windows_apps:");
         sb.AppendLine($"    enabled: {Bool(cfg.Tools.WindowsApps)}");
         sb.AppendLine("  windows_state:");

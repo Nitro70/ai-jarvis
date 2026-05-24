@@ -50,6 +50,28 @@ public static class Installer
             throw new FileNotFoundException($"Requirements file not found: {reqPath}");
         await PythonInstaller.RunPipInstallAsync(python, cfg.InstallDir, reqFile, log, ct);
 
+        // 3b. Optional: install th-ch/youtube-music desktop app for the
+        //     music_ytmd tool. Soft-fail — if the YT Music install errors we
+        //     still finish the Jarvis install, just with the tool disabled.
+        if (cfg.Tools.MusicYtmd && cfg.Tools.MusicYtmdAutoInstall)
+        {
+            step.Report("Installing YouTube Music app");
+            try
+            {
+                cfg.Tools.MusicYtmdExePath =
+                    await YtmdInstaller.EnsureInstalledAsync(log, percent, ct);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception e)
+            {
+                log.Report($"(YouTube Music install failed: {e.Message}. " +
+                           "Music control tool will be disabled. You can install " +
+                           "it manually from https://github.com/th-ch/youtube-music " +
+                           "later, then point Jarvis Settings at its .exe.)");
+                cfg.Tools.MusicYtmd = false;
+            }
+        }
+
         // 4. Write config + memory + install-info pointer
         step.Report("Writing config");
         ConfigYamlWriter.Write(cfg);
