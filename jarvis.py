@@ -36,6 +36,64 @@ from core.memory import load_memory
 from core.tools import collect_tools
 
 
+_WHISPER_SIZE_HINTS = {
+    "tiny":      "~40 MB",   "tiny.en":   "~40 MB",
+    "base":      "~75 MB",   "base.en":   "~75 MB",
+    "small":     "~250 MB",  "small.en":  "~250 MB",
+    "medium":    "~770 MB",  "medium.en": "~770 MB",
+    "large-v1":  "~1.6 GB",  "large-v2":  "~1.6 GB",  "large-v3": "~1.6 GB",
+    "large":     "~1.6 GB",
+}
+
+
+def _load_whisper_with_recovery(size: str, role: str):
+    """Load a faster-whisper model with friendly progress messaging and
+    auto-recovery from corrupt-cache failures.
+
+    On first use a model has to be downloaded from HuggingFace (Systran/
+    faster-whisper-{size}). The download can be slow for medium / large
+    (hundreds of MB) and HF prints scary-looking warnings on stderr (most
+    notably the "symlinks not supported" one) that look like errors but
+    aren't. We print our own clear status before the call so the user knows
+    what's happening.
+
+    If a previous run was Ctrl+C'd mid-download, the partial file in
+    ~/.cache/huggingface/hub corrupts the next load attempt. When we detect
+    a load failure, blow away the cached model dir for THIS size and retry
+    once."""
+    from faster_whisper import WhisperModel
+
+    hint = _WHISPER_SIZE_HINTS.get(size, "")
+    sizeStr = f" ({hint}, downloads on first use)" if hint else ""
+    print(f"Loading Whisper {role} model: {size}{sizeStr}...", flush=True)
+
+    try:
+        return WhisperModel(size, device="cpu", compute_type="int8")
+    except Exception as e:
+        # Could be a corrupt partial download from a previous Ctrl+C, or a
+        # genuine network/disk problem. Try one cache wipe + retry.
+        cache_root = Path.home() / ".cache" / "huggingface" / "hub"
+        # HF cache layout: models--Systran--faster-whisper-{size}/
+        bad_dir = cache_root / f"models--Systran--faster-whisper-{size}"
+        if bad_dir.exists():
+            print(f"  load failed ({e.__class__.__name__}: {e})", flush=True)
+            print(f"  clearing possibly-corrupt cache at {bad_dir} and retrying...",
+                  flush=True)
+            import shutil
+            try:
+                shutil.rmtree(bad_dir)
+            except OSError as rm_err:
+                print(f"  couldn't clear cache: {rm_err}", flush=True)
+                raise
+            try:
+                return WhisperModel(size, device="cpu", compute_type="int8")
+            except Exception as e2:
+                print(f"  retry also failed: {e2}", flush=True)
+                raise
+        # No cache to clear — propagate the original error.
+        raise
+
+
 def _build_system_prompt(config: dict, log: logging.Logger) -> str:
     """Combine persona.system_prompt with the contents of memory.md (if any)."""
     persona = config.get("persona") or {}
