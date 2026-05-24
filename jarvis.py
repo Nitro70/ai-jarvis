@@ -1,8 +1,11 @@
-"""Jarvis — voice assistant entry point.
+"""Jarvis — voice / text assistant entry point.
 
 Usage:
-    python jarvis.py                 # use ./config.yaml
-    python jarvis.py -c other.yaml   # custom config
+    python jarvis.py                 # use ./config.yaml's mode (default voice)
+    python jarvis.py --text          # force text mode (type, no mic needed)
+    python jarvis.py --voice         # force voice mode (wake word + STT)
+    python jarvis.py --no-tts        # disable spoken replies for this run
+    python jarvis.py -c other.yaml   # custom config file
     python jarvis.py --debug         # mirror logs to terminal
 """
 
@@ -45,23 +48,57 @@ def _build_system_prompt(config: dict, log: logging.Logger) -> str:
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Jarvis voice assistant")
+    p = argparse.ArgumentParser(description="Jarvis voice/text assistant")
     p.add_argument("-c", "--config", default="config.yaml",
                    help="Path to config.yaml (default: ./config.yaml)")
     p.add_argument("--debug", action="store_true",
-                   help="Mirror logs to the terminal")
+                   help="Mirror logs to the terminal (default: file only)")
+    mode = p.add_mutually_exclusive_group()
+    mode.add_argument("--text", action="store_const", const="text", dest="mode",
+                      help="Force text mode (type messages, mic not used)")
+    mode.add_argument("--voice", action="store_const", const="voice", dest="mode",
+                      help="Force voice mode (wake word + STT + TTS)")
+    p.add_argument("--no-tts", action="store_true",
+                   help="Disable spoken replies for this run "
+                        "(text mode will be silent; voice mode keeps mic)")
     return p.parse_args()
 
 
-async def run_voice_mode(config, llm_backend, log):
+def _make_tts(config: dict, force_disable: bool):
+    """Construct a TextToSpeech instance from config. Returns None if TTS
+    deps aren't installed (graceful: text mode will just print)."""
+    tts_cfg = (config.get("voice") or {}).get("tts") or {}
+    enabled = tts_cfg.get("enabled", True) and not force_disable
+    try:
+        from voice.tts import TextToSpeech
+    except ImportError as e:
+        logging.getLogger("jarvis").warning(
+            "TTS deps not installed (%s) — replies will print only. "
+            "Install with: pip install -r requirements-voice.txt", e,
+        )
+        return None
+    return TextToSpeech(
+        voice=tts_cfg.get("voice", "en-GB-RyanNeural"),
+        enabled=enabled,
+    )
+
+
+async def run_voice_mode(config, llm_backend, log, tts):
     """Wake word → record → transcribe → query → TTS → loop."""
-    from faster_whisper import WhisperModel
-    from voice.stt import VoiceListener
-    from voice.tts import TextToSpeech
+    try:
+        from faster_whisper import WhisperModel
+        from voice.stt import VoiceListener
+    except ImportError as e:
+        print(
+            f"\nCan't start voice mode — missing dependency: {e}\n"
+            "Install with:  pip install -r requirements-voice.txt\n"
+            "Or run in text mode:  python jarvis.py --text\n",
+            file=sys.stderr, flush=True,
+        )
+        return
 
     voice_cfg = config.get("voice") or {}
     stt_cfg = voice_cfg.get("stt") or {}
-    tts_cfg = voice_cfg.get("tts") or {}
 
     wake_model_size = stt_cfg.get("wake_model", "tiny.en")
     cmd_model_size = stt_cfg.get("model", "base.en")
@@ -82,10 +119,6 @@ async def run_voice_mode(config, llm_backend, log):
         max_command_seconds=voice_cfg.get("max_command_seconds", 30),
         command_giveup_seconds=voice_cfg.get("command_giveup_seconds", 6),
     )
-    tts = TextToSpeech(
-        voice=tts_cfg.get("voice", "en-GB-RyanNeural"),
-        enabled=tts_cfg.get("enabled", True),
-    )
 
     # If the windows_state tool is loaded, start its foreground tracker so
     # "minimize this window" works.
@@ -101,7 +134,6 @@ async def run_voice_mode(config, llm_backend, log):
         "pause when done.\nCtrl+C to quit at any time.\n",
         flush=True,
     )
-
     try:
         await asyncio.to_thread(input, "▶ Press Enter to start ")
     except (EOFError, KeyboardInterrupt):
@@ -143,13 +175,31 @@ async def run_voice_mode(config, llm_backend, log):
         full_reply = "".join(reply_parts).strip()
         if full_reply:
             log.info("JARVIS: %s", full_reply)
-            await tts.speak(full_reply)
+            if tts:
+                await tts.speak(full_reply)
         print()
 
 
-async def run_text_mode(_config, llm_backend, log):
-    """Type → query → print → loop. No voice."""
-    print("Jarvis online (text mode). Type messages, blank line to quit.\n", flush=True)
+async def run_text_mode(_config, llm_backend, log, tts):
+    """Type → query → print → (optionally speak) → loop. No mic required."""
+    speaking = bool(tts and tts.enabled)
+    print(
+        "Jarvis online (text mode). Type a message and press Enter. "
+        "Blank line to quit.\n"
+        + ("(replies will also be spoken aloud — use --no-tts to silence them)\n"
+           if speaking else
+           "(replies are text-only — TTS is disabled)\n"),
+        flush=True,
+    )
+
+    # Some tools (windows_state) start a background task that wants the event
+    # loop running. Spin it up here too so text mode supports "minimize this".
+    try:
+        from tools.windows_state import start_foreground_tracker
+        start_foreground_tracker()
+    except ImportError:
+        pass
+
     while True:
         try:
             user_text = await asyncio.to_thread(input, "You: ")
@@ -165,9 +215,14 @@ async def run_text_mode(_config, llm_backend, log):
         async for chunk in llm_backend.send(user_text):
             print(chunk, end="", flush=True)
             reply_parts.append(chunk)
-        print("\n")
-        if reply_parts:
-            log.info("JARVIS: %s", "".join(reply_parts).strip())
+        print()
+
+        full_reply = "".join(reply_parts).strip()
+        if full_reply:
+            log.info("JARVIS: %s", full_reply)
+            if tts:
+                await tts.speak(full_reply)
+        print()
 
 
 async def main():
@@ -179,20 +234,22 @@ async def main():
     tools = collect_tools(config)
     log.info("loaded %d tools total: %s", len(tools), [t.name for t in tools])
 
-    # Merge memory.md into the system prompt before constructing the backend.
     config.setdefault("persona", {})["system_prompt"] = _build_system_prompt(config, log)
 
     from llm import make_backend
     backend = make_backend(config, tools)
 
-    mode = (config.get("mode") or "voice").lower()
+    # CLI override beats config; default is "voice".
+    mode = (args.mode or (config.get("mode") or "voice")).lower()
     log.info("mode: %s", mode)
+
+    tts = _make_tts(config, force_disable=args.no_tts)
 
     async with backend:
         if mode == "text":
-            await run_text_mode(config, backend, log)
+            await run_text_mode(config, backend, log, tts)
         else:
-            await run_voice_mode(config, backend, log)
+            await run_voice_mode(config, backend, log, tts)
 
 
 if __name__ == "__main__":

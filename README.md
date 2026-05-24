@@ -204,13 +204,88 @@ voice:
 
 ---
 
-## Text mode (no microphone)
+## Text mode (no microphone needed)
+
+You type a message, Jarvis answers in text **and speaks the reply aloud**. No wake word, no microphone, no Whisper models — just typing.
+
+Good when:
+- You don't have a microphone, or it's broken, or it's a desktop without one
+- You're somewhere you can't talk (library, office, late at night)
+- You're testing a new tool or LLM backend and want quick iteration
+- You're SSH'd into a remote machine that has no mic but does have speakers
+- Voice mode just isn't working and you need to use Jarvis right now
+
+### Three ways to turn it on
+
+**1. Make text mode the default** — edit `config.yaml`:
 
 ```yaml
 mode: text
 ```
 
-You type, Jarvis responds. Useful for testing, headless servers, or when you don't have a working mic.
+**2. Override at launch** — keep your config on voice, flip to text for one session:
+
+```bash
+python jarvis.py --text
+```
+
+The flag wins over whatever's in the config. Useful when your mic is misbehaving and you want to fall back without editing files.
+
+**3. The opposite** — if your config defaults to text:
+
+```bash
+python jarvis.py --voice
+```
+
+### Spoken replies in text mode
+
+By default, replies are both **printed and spoken** — you type, you read the answer, you also hear it. To silence the speaking and keep replies text-only:
+
+```bash
+python jarvis.py --text --no-tts
+```
+
+Or permanently in `config.yaml`:
+
+```yaml
+voice:
+  tts:
+    enabled: false
+```
+
+`--no-tts` also works in voice mode (mic stays on, just no spoken replies).
+
+### What you actually need to install for text mode
+
+Bare minimum for text-only with a hosted LLM backend:
+
+```bash
+pip install -r requirements.txt        # pyyaml + httpx
+pip install -r requirements-llm.txt    # the SDK for your backend
+```
+
+That's it. No `faster-whisper`, no `sounddevice`, no `numpy`, no `pygame`. If you also want spoken replies, add:
+
+```bash
+pip install edge-tts pygame
+```
+
+(those two specific packages — you don't need the whole voice profile).
+
+If voice deps aren't installed and you try to launch voice mode, you get a friendly error pointing you at `--text` instead of a crash.
+
+### Quick start, text-only path
+
+```bash
+git clone https://github.com/Nitro70/ai-jarvis
+cd ai-jarvis
+pip install -r requirements.txt -r requirements-llm.txt edge-tts pygame
+cp config.example.yaml config.yaml
+# edit config.yaml — set mode: text, pick an LLM backend, paste API key
+python jarvis.py
+```
+
+You should be talking (well, typing) to Jarvis within five minutes.
 
 ---
 

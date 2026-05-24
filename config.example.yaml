@@ -1,7 +1,9 @@
 # Jarvis configuration. Copy this file to config.yaml and edit.
 # Environment variables: any value can use ${VAR_NAME} to pull from the env.
 
-# Mode: "voice" (wake-word + STT + TTS) or "text" (type commands, see replies)
+# Mode: "voice" (wake-word + STT + TTS) or "text" (type commands, see replies).
+# CLI overrides this: `python jarvis.py --text` or `--voice`.
+# In text mode, replies are both printed AND spoken (unless --no-tts).
 mode: voice
 
 
