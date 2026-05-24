@@ -27,6 +27,18 @@ public static class Shortcuts
             $"\"{pythonExe}\" jarvis.py %*\r\n",
             new UTF8Encoding(false));
 
+        // 1b. An update.cmd next to it so people can double-click to update
+        //     without opening Settings or memorizing the PowerShell one-liner.
+        var updateCmd = Path.Combine(cfg.InstallDir, "update.cmd");
+        File.WriteAllText(updateCmd,
+            "@echo off\r\n" +
+            "REM Pulls the latest Jarvis release from GitHub and applies it\r\n" +
+            "REM in place. Same logic as the Settings 'Updates' tab.\r\n" +
+            "powershell -NoProfile -ExecutionPolicy Bypass -Command " +
+            "\"irm https://raw.githubusercontent.com/Nitro70/ai-jarvis/main/install.ps1 | iex\"\r\n" +
+            "pause\r\n",
+            new UTF8Encoding(false));
+
         // 2. Settings launcher (JarvisSettings.exe lives next to jarvis.py
         //    after the installer copies it there — see Installer + GitHub release).
         var settingsExe = Path.Combine(cfg.InstallDir, "JarvisSettings.exe");
