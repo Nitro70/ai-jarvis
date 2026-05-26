@@ -26,6 +26,10 @@ public partial class App : Application
     // block across different Windows users which we don't want.
     private const string MutexName = @"Local\Jarvis.Settings.SingleInstance.v1";
     private static Mutex? _instanceMutex;
+    // Tracked so OnExit doesn't ReleaseMutex on a mutex we never owned.
+    // ReleaseMutex throws ApplicationException for the non-owner case, and
+    // the old code swallowed that — masking a real category error.
+    private static bool _ownsMutex;
 
     [DllImport("user32.dll")]   private static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")]   private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
@@ -60,25 +64,53 @@ public partial class App : Application
 
         if (!ownsMutex)
         {
-            // A real other instance is running. Surface it and exit.
-            TryActivateExisting();
-            Shutdown();
-            return;
+            // A real other instance is alive — try to surface its window.
+            // If TryActivateExisting found and activated one, we're done:
+            // exit so the user just sees the existing window focused.
+            // If it killed zombies instead (no visible window anywhere),
+            // it returns false — in that case the live process IS now
+            // ours: take the mutex and fall through to start normally so
+            // the user's click actually produces a window.
+            var activated = TryActivateExisting();
+            if (activated)
+            {
+                Shutdown();
+                return;
+            }
+            // Re-acquire the mutex after the kill swept out the holder.
+            try
+            {
+                if (_instanceMutex!.WaitOne(2000, exitContext: false))
+                    _ownsMutex = true;
+            }
+            catch (AbandonedMutexException) { _ownsMutex = true; }
+            if (!_ownsMutex)
+            {
+                // Couldn't take it even after killing the zombies — give up
+                // cleanly rather than running two instances.
+                Shutdown();
+                return;
+            }
+        }
+        else
+        {
+            _ownsMutex = true;
         }
 
         base.OnStartup(e);
     }
 
     /// <summary>
-    /// Find any other JarvisSettings.exe processes and bring their main
-    /// window forward. If none of them have a visible window (all hung /
-    /// background), kill them so the user's next click starts clean.
+    /// Find any other JarvisSettings.exe processes. Returns true if we
+    /// activated an existing visible window (caller should exit). Returns
+    /// false if all siblings were zombies — they've been killed and the
+    /// caller should fall through and start as the new live instance.
     /// </summary>
-    private static void TryActivateExisting()
+    private static bool TryActivateExisting()
     {
         Process current;
         try { current = Process.GetCurrentProcess(); }
-        catch { return; }
+        catch { return false; }
 
         Process[] others;
         try
@@ -87,7 +119,7 @@ public partial class App : Application
                 .Where(p => p.Id != current.Id)
                 .ToArray();
         }
-        catch { return; }
+        catch { return false; }
 
         // Try to activate any visible window first.
         foreach (var p in others)
@@ -101,29 +133,47 @@ public partial class App : Application
             if (IsIconic(handle)) ShowWindow(handle, SW_RESTORE);
             else                  ShowWindow(handle, SW_SHOW);
             SetForegroundWindow(handle);
-            return;
+            return true;
         }
 
-        // No visible window on any sibling - they're zombies. Take them
-        // out so the user can re-launch into a working instance. We have
-        // to release the mutex too, otherwise the freshly-started copy
-        // they'll spawn will see it held by us.
+        // No visible window on any sibling — they're zombies. Take them
+        // out so we (the caller) can become the new live instance.
+        bool killed = false;
         foreach (var p in others)
         {
-            try { p.Kill(entireProcessTree: true); }
+            try
+            {
+                p.Kill(entireProcessTree: true);
+                p.WaitForExit(2000);
+                killed = true;
+            }
             catch { /* permissions / already exited / whatever */ }
         }
+        // Even if we killed nothing (no real siblings), return false so the
+        // caller proceeds to acquire the mutex and start fresh.
+        _ = killed;
+        return false;
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        // Only ReleaseMutex if we actually owned it. The OS throws
+        // ApplicationException ("Object synchronization method was called
+        // from an unsynchronized block of code") if you call ReleaseMutex
+        // without ownership — silently swallowing that was hiding a real
+        // category error.
         try
         {
-            _instanceMutex?.ReleaseMutex();
-            _instanceMutex?.Dispose();
+            if (_ownsMutex && _instanceMutex != null)
+                _instanceMutex.ReleaseMutex();
         }
-        catch { /* ReleaseMutex throws if we never owned it; harmless on exit */ }
-        finally { _instanceMutex = null; }
+        catch { /* defensive — should not fire now that we gate on _ownsMutex */ }
+        finally
+        {
+            _instanceMutex?.Dispose();
+            _instanceMutex = null;
+            _ownsMutex = false;
+        }
         base.OnExit(e);
     }
 }

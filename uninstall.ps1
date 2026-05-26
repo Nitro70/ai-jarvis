@@ -115,12 +115,21 @@ $killCount = 0
 Get-Process -Name 'JarvisSettings' -ErrorAction SilentlyContinue | ForEach-Object {
     try { $_.Kill(); $_.WaitForExit(3000); $killCount++ } catch {}
 }
-# Find python processes whose command line points at this install (jarvis.py)
+# Find python processes whose command line points at jarvis.py AND lives
+# inside THIS install dir. Must be both — the previous '-or' version would
+# kill any python on the box whose command line mentioned 'jarvis.py'
+# (developer's editor, pytest run, sibling checkout) just because of the
+# substring match. Also normalize the install-dir path so we don't match
+# 'C:\Apps\Jarvis2\foo.py' when uninstalling 'C:\Apps\Jarvis'.
+$normalizedInstall = $installDir.TrimEnd('\','/')
 try {
     Get-CimInstance Win32_Process -Filter "Name = 'python.exe' OR Name = 'pythonw.exe'" -ErrorAction SilentlyContinue |
         Where-Object {
             $cl = $_.CommandLine
-            $cl -and ($cl -like "*jarvis.py*" -or $cl -like "*$installDir*")
+            if (-not $cl) { return $false }
+            if ($cl -notlike '*jarvis.py*') { return $false }
+            # Case-insensitive substring match on the normalized install path.
+            return $cl.IndexOf($normalizedInstall, [StringComparison]::OrdinalIgnoreCase) -ge 0
         } | ForEach-Object {
             try {
                 Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue

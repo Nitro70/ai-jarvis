@@ -47,17 +47,6 @@ class OpenAICompatBackend(LLMBackend):
                  self._base_url, self._model)
         return self
 
-    def _pop_user_turn(self) -> None:
-        """Roll back the most recently appended user message.
-
-        Used when the very first request of a send() fails. Without this,
-        the failed user turn stays in history forever and every subsequent
-        send() retransmits it, both wasting tokens and confusing the model
-        (it sees a "user said X" with no assistant reply right before its
-        own turn)."""
-        if self._history and self._history[-1].get("role") == "user":
-            self._history.pop()
-
     async def __aexit__(self, *exc) -> None:
         # Closing can itself raise if the underlying httpx client already tore
         # down (e.g. event-loop shutdown). Swallow - we're exiting anyway.
@@ -79,13 +68,18 @@ class OpenAICompatBackend(LLMBackend):
             OpenAIError,
         )
 
+        # Take a snapshot of history BEFORE appending anything for this turn.
+        # If any LLM call fails — first attempt or in the middle of a
+        # multi-step tool round-trip — we restore to here, dropping the
+        # half-baked sequence (user + assistant(tool_calls) + tool(result))
+        # rather than leaving it stuck in history confusing every future
+        # request. The previous design only rolled back on iter_count == 0,
+        # which silently bloated history on any tool-iteration failure.
+        checkpoint = len(self._history)
         self._history.append({"role": "user", "content": user_text})
 
-        # Track whether we've made at least one successful round-trip. If the
-        # FIRST attempt fails we roll back the user message we just appended,
-        # so the next send() doesn't carry a stuck "user said X, assistant
-        # never replied" turn that would confuse the model.
-        iter_count = 0
+        def _rollback() -> None:
+            del self._history[checkpoint:]
 
         while True:
             kwargs = dict(
@@ -100,61 +94,53 @@ class OpenAICompatBackend(LLMBackend):
                 response = await self._client.chat.completions.create(**kwargs)
             except AuthenticationError as e:
                 log.error("LLM auth failed (%s): %s", self._base_url, e)
-                if iter_count == 0:
-                    self._pop_user_turn()
+                _rollback()
                 yield ("My API key was rejected by the LLM. "
                        "Check api_key in config.yaml and restart me.")
                 return
             except RateLimitError as e:
                 log.error("LLM rate-limited: %s", e)
-                if iter_count == 0:
-                    self._pop_user_turn()
+                _rollback()
                 yield "The LLM provider is rate-limiting me. Try again in a minute."
                 return
             except APITimeoutError as e:
                 log.error("LLM timeout: %s", e)
-                if iter_count == 0:
-                    self._pop_user_turn()
+                _rollback()
                 yield "The LLM took too long to respond. Try again."
                 return
             except APIConnectionError as e:
                 log.error("LLM network error (%s): %s", self._base_url, e)
-                if iter_count == 0:
-                    self._pop_user_turn()
+                _rollback()
                 yield ("I can't reach the LLM server. "
                        "Check your internet or the base_url in config.yaml.")
                 return
             except BadRequestError as e:
                 log.error("LLM rejected request: %s", e)
-                if iter_count == 0:
-                    self._pop_user_turn()
+                _rollback()
                 yield ("The LLM rejected my request - the model name or "
                        "config is probably wrong. Check the log.")
                 return
             except APIStatusError as e:
                 code = getattr(e, "status_code", "?")
                 log.error("LLM HTTP %s: %s", code, e)
-                if iter_count == 0:
-                    self._pop_user_turn()
+                _rollback()
                 yield f"The LLM returned HTTP {code}. Check the log for details."
                 return
             except OpenAIError as e:
                 log.exception("LLM unexpected OpenAI error")
-                if iter_count == 0:
-                    self._pop_user_turn()
+                _rollback()
                 yield f"Something went wrong talking to the LLM: {e}"
                 return
             except Exception as e:  # noqa: BLE001
-                # Non-OpenAI exception (e.g. asyncio.CancelledError won't get
-                # here because it's BaseException, which is what we want -
-                # cancellations still propagate). Anything else: friendly fail.
+                # Non-OpenAI exception. asyncio.CancelledError is BaseException
+                # so it bypasses this handler — cancellations still propagate,
+                # but we still need to roll back history because the cancel
+                # happened mid-turn.
                 log.exception("LLM unexpected non-OpenAI error")
-                if iter_count == 0:
-                    self._pop_user_turn()
+                _rollback()
                 yield f"Something went wrong: {e}"
                 return
 
-            iter_count += 1
             choice = response.choices[0]
             msg = choice.message
 

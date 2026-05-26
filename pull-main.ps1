@@ -49,14 +49,15 @@ Expand-Archive -Path $zipPath -DestinationPath $tmpDir -Force
 
 $inner = (Get-ChildItem $tmpDir | Where-Object PSIsContainer | Select-Object -First 1).FullName
 
-# Files we deliberately don't overwrite.
+# Files we deliberately don't overwrite. Must stay in sync with the
+# matching list in install.ps1 and Updater._preservedNames in C#.
 $skip = @(
     'config.yaml', 'config.local.yaml',
     'memory.md',
     'jarvis.log',
     '.install-stamp',
     '.env', '.ytmd_token',
-    'JarvisSettings.exe', 'JarvisSettings.exe.old',
+    'JarvisSettings.exe', 'JarvisSettings.exe.old', 'JarvisSettings.exe.new',
     'JarvisInstaller.exe'
 )
 

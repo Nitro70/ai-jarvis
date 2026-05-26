@@ -46,6 +46,27 @@ _WHISPER_SIZE_HINTS = {
 }
 
 
+import re as _re
+
+# Whisper model names are tightly constrained — letters, digits, dot, dash.
+# Anything else is either a typo or someone trying to coerce a path. We
+# reject it loudly rather than letting it flow into a filesystem path.
+_WHISPER_SIZE_RE = _re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def _hf_hub_cache_dir() -> Path:
+    """Return the actual HF Hub cache root, honoring HF_HUB_CACHE / HF_HOME.
+
+    huggingface_hub computes this from a small precedence chain; replicating
+    it by hand would drift. Import the constant; fall back to the documented
+    default if huggingface_hub isn't installed for some reason."""
+    try:
+        from huggingface_hub import constants as hf_const
+        return Path(hf_const.HF_HUB_CACHE)
+    except ImportError:
+        return Path.home() / ".cache" / "huggingface" / "hub"
+
+
 def _load_whisper_with_recovery(size: str, role: str):
     """Load a faster-whisper model with friendly progress messaging and
     auto-recovery from corrupt-cache failures.
@@ -57,22 +78,33 @@ def _load_whisper_with_recovery(size: str, role: str):
     aren't. We print our own clear status before the call so the user knows
     what's happening.
 
-    If a previous run was Ctrl+C'd mid-download, the partial file in
-    ~/.cache/huggingface/hub corrupts the next load attempt. When we detect
-    a load failure, blow away the cached model dir for THIS size and retry
-    once."""
+    If a previous run was Ctrl+C'd mid-download, the partial file in the HF
+    Hub cache corrupts the next load attempt. When we detect a load
+    failure, blow away the cached model dir for THIS size and retry once.
+
+    Honors HF_HUB_CACHE / HF_HOME so the recovery actually deletes the
+    right directory when the user has customized cache location."""
     from faster_whisper import WhisperModel
 
+    # Defense: `size` flows into a path string below; reject anything that
+    # could escape the cache dir (".." segments, slashes, NUL bytes, etc).
+    if not _WHISPER_SIZE_RE.match(size):
+        raise ValueError(
+            f"Refusing to load Whisper model with non-canonical name {size!r}. "
+            "Use a name like 'tiny.en' / 'base.en' / 'small' / 'medium.en' / "
+            "'large-v3'."
+        )
+
     hint = _WHISPER_SIZE_HINTS.get(size, "")
-    sizeStr = f" ({hint}, downloads on first use)" if hint else ""
-    print(f"Loading Whisper {role} model: {size}{sizeStr}...", flush=True)
+    size_str = f" ({hint}, downloads on first use)" if hint else ""
+    print(f"Loading Whisper {role} model: {size}{size_str}...", flush=True)
 
     try:
         return WhisperModel(size, device="cpu", compute_type="int8")
     except Exception as e:
         # Could be a corrupt partial download from a previous Ctrl+C, or a
         # genuine network/disk problem. Try one cache wipe + retry.
-        cache_root = Path.home() / ".cache" / "huggingface" / "hub"
+        cache_root = _hf_hub_cache_dir()
         # HF cache layout: models--Systran--faster-whisper-{size}/
         bad_dir = cache_root / f"models--Systran--faster-whisper-{size}"
         if bad_dir.exists():

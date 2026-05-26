@@ -24,21 +24,14 @@ public partial class MainWindow : Window
         if (string.IsNullOrWhiteSpace(_cfg.InstallDir) || !Directory.Exists(_cfg.InstallDir))
             _cfg.InstallDir = AppContext.BaseDirectory;
 
-        // Load existing memory.md content if any.
-        var memoryPath = Path.Combine(_cfg.InstallDir, "memory.md");
-        if (File.Exists(memoryPath))
-        {
-            try { _cfg.Memory.Content = File.ReadAllText(memoryPath); }
-            catch { }
-        }
-
-        // Overlay LLM credentials from the live config.yaml. Without this the
-        // Settings UI shows whatever install-info.json had, which can be stale
-        // if the user edited config.yaml by hand. Clicking Save in that state
-        // would silently overwrite the real key with whatever blank/old value
-        // the UI was showing.
-        try { ConfigYamlReader.OverlayLlmCreds(_cfg, _cfg.InstallDir); }
-        catch { /* best-effort - never block the UI from loading */ }
+        // Overlay EVERY UI-writable section from the live config.yaml on top
+        // of install-info.json. Without this the Settings UI shows stale
+        // values for anything the user hand-edited — and Save would silently
+        // overwrite those edits. memory.md loading is handled by MemoryView
+        // itself (single source of truth) so the "loaded existing memory"
+        // banner fires consistently in both wizard and Settings.
+        try { ConfigYamlReader.OverlayAll(_cfg, _cfg.InstallDir); }
+        catch { /* best-effort — never block the UI from loading */ }
 
         InstallDirLabel.Text = _cfg.InstallDir;
 

@@ -111,14 +111,16 @@ if (-not $inner) {
     throw "Extracted archive had no inner directory — unexpected layout."
 }
 
-# Files we deliberately don't overwrite.
+# Files we deliberately don't overwrite. Must stay in sync with the
+# matching list in pull-main.ps1 and Updater._preservedNames in C#.
 $skipNames = @(
     'config.yaml', 'config.local.yaml',
     'memory.md',
     'jarvis.log',
     '.install-stamp',
     '.env', '.ytmd_token',
-    'JarvisSettings.exe.old'
+    'JarvisSettings.exe', 'JarvisSettings.exe.old', 'JarvisSettings.exe.new',
+    'JarvisInstaller.exe'
 )
 
 Write-Info "  copying files to $($existing.InstallDir)..."
