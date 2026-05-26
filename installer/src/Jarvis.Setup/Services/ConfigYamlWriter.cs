@@ -78,6 +78,7 @@ public static class ConfigYamlWriter
         sb.AppendLine("  tts:");
         sb.AppendLine($"    enabled: {(cfg.Voice.TtsEnabled ? "true" : "false")}");
         sb.AppendLine($"    voice: {cfg.Voice.TtsVoice}");
+        sb.AppendLine($"  always_on: {(cfg.Voice.AlwaysOn ? "true" : "false")}   # skip 'Press Enter to start' prompt on launch");
         sb.AppendLine();
 
         // ---- Tools ----

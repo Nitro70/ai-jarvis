@@ -226,16 +226,28 @@ async def run_voice_mode(config, llm_backend, log, tts):
     except ImportError:
         pass
 
-    print(
-        f"\nJarvis online. Press Enter to start listening for '{wake_word}'.\n"
-        "Once active, just say the wake word followed by your request — "
-        "pause when done.\nCtrl+C to quit at any time.\n",
-        flush=True,
-    )
-    try:
-        await asyncio.to_thread(input, "▶ Press Enter to start ")
-    except (EOFError, KeyboardInterrupt):
-        return
+    # voice.always_on=true skips the Press-Enter prompt so Jarvis starts
+    # listening the moment the process boots. Intended for the startup-app
+    # use case where there's nobody at the terminal to press Enter.
+    always_on = bool(voice_cfg.get("always_on", False))
+    if always_on:
+        print(
+            f"\nJarvis online. Listening for '{wake_word}' immediately "
+            "(voice.always_on=true).\nSay the wake word followed by your request — "
+            "pause when done.\nCtrl+C to quit at any time.\n",
+            flush=True,
+        )
+    else:
+        print(
+            f"\nJarvis online. Press Enter to start listening for '{wake_word}'.\n"
+            "Once active, just say the wake word followed by your request — "
+            "pause when done.\nCtrl+C to quit at any time.\n",
+            flush=True,
+        )
+        try:
+            await asyncio.to_thread(input, "▶ Press Enter to start ")
+        except (EOFError, KeyboardInterrupt):
+            return
 
     while True:
         try:

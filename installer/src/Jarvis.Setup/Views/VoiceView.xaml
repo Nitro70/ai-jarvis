@@ -33,7 +33,13 @@
                 <ComboBoxItem Tag="medium.en" Content="medium.en — ~770 MB, very accurate, slow on CPU"/>
             </ComboBox>
 
-            <CheckBox x:Name="TtsEnabled" Margin="0,18,0,6"
+            <CheckBox x:Name="AlwaysOn" Margin="0,18,0,2"
+                      IsChecked="{Binding Voice.AlwaysOn, Mode=TwoWay}"
+                      Content="Always-on (start listening immediately, skip Press-Enter prompt)"/>
+            <TextBlock Margin="22,0,0,4" Opacity="0.6" FontSize="11" TextWrapping="Wrap"
+                       Text="Useful when running Jarvis as a startup app. Wake-word detection begins the moment jarvis.py boots."/>
+
+            <CheckBox x:Name="TtsEnabled" Margin="0,12,0,6"
                       IsChecked="{Binding Voice.TtsEnabled, Mode=TwoWay}"
                       Content="Speak replies aloud (Edge TTS)"/>
 

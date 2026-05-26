@@ -32,6 +32,14 @@ public partial class MainWindow : Window
             catch { }
         }
 
+        // Overlay LLM credentials from the live config.yaml. Without this the
+        // Settings UI shows whatever install-info.json had, which can be stale
+        // if the user edited config.yaml by hand. Clicking Save in that state
+        // would silently overwrite the real key with whatever blank/old value
+        // the UI was showing.
+        try { ConfigYamlReader.OverlayLlmCreds(_cfg, _cfg.InstallDir); }
+        catch { /* best-effort - never block the UI from loading */ }
+
         InstallDirLabel.Text = _cfg.InstallDir;
 
         // Sweep up any leftover JarvisSettings.exe.old left by a prior update.

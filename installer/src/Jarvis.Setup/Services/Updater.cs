@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -129,6 +130,27 @@ public static class Updater
     //  installer-flow-specific code)
     // ============================================================
 
+    // Files we will NEVER overwrite via the in-app updater. Keeping this in
+    // sync with pull-main.ps1's skip list. Adding new patterns here is cheap
+    // protection - if any of these names ever sneaks into the repo zip it
+    // can't clobber the user's state.
+    private static readonly HashSet<string> _preservedNames = new(
+        StringComparer.OrdinalIgnoreCase)
+    {
+        // Configuration the user owns
+        "config.yaml", "config.local.yaml",
+        // Memory / personal context
+        "memory.md",
+        // Logs and runtime stamps
+        "jarvis.log", ".install-stamp",
+        // Secrets / tokens that the YouTube Music tool drops
+        ".env", ".ytmd_token",
+        // The Settings + Installer executables. The updater swaps these via
+        // explicit rename above; the source zip shouldn't carry them anyway.
+        "JarvisSettings.exe", "JarvisSettings.exe.old", "JarvisSettings.exe.new",
+        "JarvisInstaller.exe",
+    };
+
     private static void ExtractAndFlatten(string zipPath, string destDir, IProgress<string> log)
     {
         using var archive = ZipFile.OpenRead(zipPath);
@@ -141,6 +163,7 @@ public static class Updater
             .First().Key + "/";
 
         int count = 0;
+        int preserved = 0;
         foreach (var entry in archive.Entries)
         {
             if (string.IsNullOrEmpty(entry.Name)) continue;
@@ -153,10 +176,16 @@ public static class Updater
                                    StringComparison.OrdinalIgnoreCase))
                 continue;  // zip-slip guard
 
-            // Skip the .exe.old leftover from a previous update.
-            if (Path.GetFileName(target).Equals("JarvisSettings.exe.old",
-                                                 StringComparison.OrdinalIgnoreCase))
+            // Refuse to overwrite anything the user owns. If the file exists
+            // on disk and is in the preserved set, we leave it alone. If it
+            // does NOT exist yet, we let the update create it (e.g. a brand
+            // new install picking up config.example.yaml).
+            var fname = Path.GetFileName(target);
+            if (_preservedNames.Contains(fname) && File.Exists(target))
+            {
+                preserved++;
                 continue;
+            }
 
             try
             {
@@ -171,7 +200,7 @@ public static class Updater
                 log.Report($"  (skipped {rel}: {e.Message})");
             }
         }
-        log.Report($"  extracted {count} files");
+        log.Report($"  extracted {count} files (preserved {preserved} user-owned)");
     }
 
     private static async Task DownloadFileAsync(

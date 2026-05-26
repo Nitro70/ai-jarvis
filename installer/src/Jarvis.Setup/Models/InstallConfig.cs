@@ -91,6 +91,11 @@ public class VoiceConfig
 
     public bool TtsEnabled { get; set; } = true;
     public string TtsVoice { get; set; } = "en-GB-RyanNeural";
+
+    /// <summary>If true, jarvis.py skips the "Press Enter to start" gate and
+    /// starts listening for the wake word immediately on launch. Handy when
+    /// running Jarvis as a startup app — no prompt sitting on the terminal.</summary>
+    public bool AlwaysOn { get; set; } = false;
 }
 
 public class MemoryConfig
