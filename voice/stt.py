@@ -195,9 +195,17 @@ class VoiceListener:
                     # voice is reaching Whisper, just no wake word matched.
                     print(f"   …heard: {text!r}", flush=True)
 
-    async def record_command(self) -> np.ndarray:
-        """Record audio until silence-after-speech or hard cap."""
-        log.info("command recording start")
+    async def record_command(self, giveup_seconds: float | None = None) -> np.ndarray:
+        """Record audio until silence-after-speech, hard cap, or 'no speech
+        detected' giveup. Override <paramref name="giveup_seconds"/> to widen
+        or narrow the no-speech window — used by always-on follow-up mode,
+        which wants ~30s of patience before falling back to wake-word listen
+        rather than the default 6s."""
+        log.info("command recording start (giveup=%.1fs)",
+                 giveup_seconds if giveup_seconds is not None
+                 else self.command_giveup_seconds)
+        effective_giveup = (giveup_seconds if giveup_seconds is not None
+                            else self.command_giveup_seconds)
         buf = np.zeros(0, dtype=np.float32)
         buf_lock = threading.Lock()
 
@@ -229,7 +237,7 @@ class VoiceListener:
 
                 last = _last_speech_end_seconds(snapshot)
                 if last is None:
-                    if elapsed > self.command_giveup_seconds:
+                    if elapsed > effective_giveup:
                         log.info("command recording: no speech in %.1fs", elapsed)
                         break
                     continue

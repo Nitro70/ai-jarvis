@@ -92,10 +92,16 @@ public class VoiceConfig
     public bool TtsEnabled { get; set; } = true;
     public string TtsVoice { get; set; } = "en-GB-RyanNeural";
 
-    /// <summary>If true, jarvis.py skips the "Press Enter to start" gate and
-    /// starts listening for the wake word immediately on launch. Handy when
-    /// running Jarvis as a startup app — no prompt sitting on the terminal.</summary>
+    /// <summary>If true, jarvis.py skips the "Press Enter to start" gate AND
+    /// enables hybrid follow-up listening: after every reply you can keep
+    /// talking for FollowUpSeconds without saying the wake word again. Silence
+    /// drops back to wake-word mode.</summary>
     public bool AlwaysOn { get; set; } = false;
+
+    /// <summary>How long to listen for a follow-up command after Jarvis
+    /// replies, in seconds, before falling back to wake-word mode. Only used
+    /// when AlwaysOn is true. Default 30s.</summary>
+    public double FollowUpSeconds { get; set; } = 30;
 }
 
 public class MemoryConfig

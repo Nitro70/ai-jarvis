@@ -45,9 +45,21 @@
 
             <CheckBox x:Name="AlwaysOn" Margin="0,18,0,2"
                       IsChecked="{Binding Voice.AlwaysOn, Mode=TwoWay}"
-                      Content="Always-on (start listening immediately, skip Press-Enter prompt)"/>
-            <TextBlock Margin="22,0,0,4" Opacity="0.6" FontSize="11" TextWrapping="Wrap"
-                       Text="Useful when running Jarvis as a startup app. Wake-word detection begins the moment jarvis.py boots."/>
+                      Content="Always-on conversational mode"/>
+            <TextBlock Margin="22,0,0,4" Opacity="0.65" FontSize="11" TextWrapping="Wrap">
+                Skips the 'Press Enter to start' prompt at launch. After Jarvis replies, listens
+                for a follow-up command for the duration below
+                <Run FontStyle="Italic">without</Run> requiring the wake word again. Stay quiet
+                and it drops back to wake-word mode.
+            </TextBlock>
+            <StackPanel Orientation="Horizontal" Margin="22,6,0,0">
+                <TextBlock Text="Follow-up window:" VerticalAlignment="Center" Opacity="0.8"/>
+                <TextBox x:Name="FollowUpBox" Width="60" Height="26" Margin="8,0,4,0"
+                         VerticalContentAlignment="Center"
+                         Text="{Binding Voice.FollowUpSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         IsEnabled="{Binding ElementName=AlwaysOn, Path=IsChecked}"/>
+                <TextBlock Text="seconds" VerticalAlignment="Center" Opacity="0.8"/>
+            </StackPanel>
 
             <CheckBox x:Name="TtsEnabled" Margin="0,12,0,6"
                       IsChecked="{Binding Voice.TtsEnabled, Mode=TwoWay}"

@@ -78,7 +78,8 @@ public static class ConfigYamlWriter
         sb.AppendLine("  tts:");
         sb.AppendLine($"    enabled: {(cfg.Voice.TtsEnabled ? "true" : "false")}");
         sb.AppendLine($"    voice: {cfg.Voice.TtsVoice}");
-        sb.AppendLine($"  always_on: {(cfg.Voice.AlwaysOn ? "true" : "false")}   # skip 'Press Enter to start' prompt on launch");
+        sb.AppendLine($"  always_on: {(cfg.Voice.AlwaysOn ? "true" : "false")}   # skip Press-Enter + enable hybrid follow-up listening");
+        sb.AppendLine($"  follow_up_seconds: {cfg.Voice.FollowUpSeconds.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}   # always-on: seconds to wait for follow-up before dropping back to wake word");
         sb.AppendLine();
 
         // ---- Tools ----

@@ -258,21 +258,24 @@ async def run_voice_mode(config, llm_backend, log, tts):
     except ImportError:
         pass
 
-    # voice.always_on=true skips the Press-Enter prompt so Jarvis starts
-    # listening the moment the process boots. Intended for the startup-app
-    # use case where there's nobody at the terminal to press Enter.
+    # voice.always_on=true: skip the Press-Enter prompt AND enable hybrid
+    # follow-up listening. After every reply Jarvis listens for ~follow_up_seconds
+    # for another command WITHOUT requiring the wake word; if you stay silent
+    # for that long, it falls back to wake-word mode. Designed for the
+    # "Jarvis can I get..." conversational use case.
     raw_always_on = voice_cfg.get("always_on", False)
-    # Be forgiving about how the flag is written - YAML true/false, "true",
-    # "yes", "on", "1" all turn it on. This stops "I set it to true but it
-    # still prompts" mysteries when the user wrote the value as a string.
     always_on = (raw_always_on is True
                  or str(raw_always_on).strip().lower() in {"true", "yes", "on", "1"})
-    log.info("voice.always_on = %r -> %s", raw_always_on, always_on)
+    follow_up_seconds = float(voice_cfg.get("follow_up_seconds", 30))
+    log.info("voice.always_on = %r -> %s (follow_up_seconds=%.1f)",
+             raw_always_on, always_on, follow_up_seconds)
+
     if always_on:
         print(
-            f"\nJarvis online. Listening for '{wake_word}' immediately "
-            "(voice.always_on=true).\nSay the wake word followed by your request — "
-            "pause when done.\nCtrl+C to quit at any time.\n",
+            f"\nJarvis online (always-on). Say '{wake_word}' to start. "
+            f"After each reply you can keep talking for ~{int(follow_up_seconds)}s "
+            f"without the wake word; silence drops back to wake-word listening.\n"
+            "Ctrl+C to quit.\n",
             flush=True,
         )
     else:
@@ -280,8 +283,8 @@ async def run_voice_mode(config, llm_backend, log, tts):
             f"\nJarvis online. Press Enter to start listening for '{wake_word}'.\n"
             "Once active, just say the wake word followed by your request — "
             "pause when done.\nCtrl+C to quit at any time.\n"
-            "(To skip this prompt: set voice.always_on: true in config.yaml or "
-            "tick 'Always-on' in Settings → Voice.)\n",
+            "(To skip this prompt AND get follow-up listening: tick 'Always-on' "
+            "in Settings → Voice.)\n",
             flush=True,
         )
         try:
@@ -289,28 +292,14 @@ async def run_voice_mode(config, llm_backend, log, tts):
         except (EOFError, KeyboardInterrupt):
             return
 
-    while True:
-        try:
-            await listener.wait_for_wake()
-        except (EOFError, KeyboardInterrupt):
-            return
-
-        print("✨ Yes, sir?", flush=True)
-        print("🎙️  Listening for your command...", flush=True)
-        try:
-            audio = await listener.record_command()
-        except (EOFError, KeyboardInterrupt):
-            return
-
-        if audio.size == 0:
-            print("(I didn't catch anything — going back to listening.)\n")
-            continue
-
+    async def handle_one_command(audio) -> None:
+        """Transcribe + send to LLM + speak the reply. Used by both the
+        initial post-wake command and follow-up commands in always-on mode."""
         print("⌛ Transcribing...", flush=True)
         user_text = listener.transcribe_command(audio)
         if not user_text:
             print("(silence — try again)\n")
-            continue
+            return
 
         print(f"You:    {user_text}")
         log.info("USER: %s", user_text)
@@ -322,9 +311,6 @@ async def run_voice_mode(config, llm_backend, log, tts):
                 print(chunk, end="", flush=True)
                 reply_parts.append(chunk)
         except Exception as e:  # noqa: BLE001
-            # The backend SHOULD yield friendly error strings instead of
-            # raising (see openai_compat.send). This catch is defense in
-            # depth so a misbehaving future backend can't kill the loop.
             log.exception("backend send() raised in voice loop")
             err = f"\n[backend error: {e}]"
             print(err, end="", flush=True)
@@ -340,6 +326,53 @@ async def run_voice_mode(config, llm_backend, log, tts):
                 except Exception:  # noqa: BLE001
                     log.exception("TTS failed (continuing)")
         print()
+
+    while True:
+        try:
+            await listener.wait_for_wake()
+        except (EOFError, KeyboardInterrupt):
+            return
+
+        print("✨ Yes, sir?", flush=True)
+
+        # Inner loop: first iteration is the wake-word's command. Subsequent
+        # iterations only run in always-on mode and use a longer no-speech
+        # timeout (follow_up_seconds) so the user has room to think between
+        # turns of a real conversation.
+        is_follow_up = False
+        while True:
+            if is_follow_up:
+                print(f"🎙️  Listening for follow-up "
+                      f"(~{int(follow_up_seconds)}s, or stay quiet to drop "
+                      f"back to wake-word mode)...", flush=True)
+                giveup_override = follow_up_seconds
+            else:
+                print("🎙️  Listening for your command...", flush=True)
+                giveup_override = None  # use listener's default
+
+            try:
+                audio = await listener.record_command(giveup_seconds=giveup_override)
+            except (EOFError, KeyboardInterrupt):
+                return
+
+            if audio.size == 0:
+                if is_follow_up:
+                    # Quiet for follow_up_seconds — conversation's over.
+                    print(f"(quiet — back to listening for '{wake_word}'.)\n",
+                          flush=True)
+                else:
+                    print("(I didn't catch anything — going back to listening.)\n",
+                          flush=True)
+                break  # exit inner loop, return to wait_for_wake
+
+            await handle_one_command(audio)
+
+            if always_on:
+                # Stay in the inner loop and listen for a follow-up.
+                is_follow_up = True
+                continue
+            # Default mode: one command per wake-word activation.
+            break
 
 
 async def run_text_mode(_config, llm_backend, log, tts):

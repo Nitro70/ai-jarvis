@@ -74,6 +74,12 @@ public static class ConfigYamlReader
             cfg.Voice.TtsEnabled = ParseBool(te);
         if (dict.TryGetValue("voice.tts.voice", out var tv) && !string.IsNullOrEmpty(tv))
             cfg.Voice.TtsVoice = tv;
+        if (dict.TryGetValue("voice.always_on", out var ao))
+            cfg.Voice.AlwaysOn = ParseBool(ao);
+        if (dict.TryGetValue("voice.follow_up_seconds", out var fus) &&
+            double.TryParse(fus, System.Globalization.NumberStyles.Float,
+                            System.Globalization.CultureInfo.InvariantCulture, out var fusD))
+            cfg.Voice.FollowUpSeconds = fusD;
 
         // ---- persona.memory_file → Memory.Enabled (Memory.Content comes from
         //      memory.md on disk, not from config.yaml) ----
