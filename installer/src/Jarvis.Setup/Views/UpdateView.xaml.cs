@@ -21,14 +21,37 @@ public partial class UpdateView : UserControl
     public void Bind(InstallConfig cfg)
     {
         _cfg = cfg;
-        // Prefer install-info.json's recorded version; fall back to the
-        // currently-running Settings.exe's assembly version (useful for the
-        // very first run on a brand-new install when install-info doesn't
-        // have Version set).
-        var installed = !string.IsNullOrWhiteSpace(cfg.Version)
-            ? cfg.Version!
-            : Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "(unknown)";
-        InstalledVerLabel.Text = installed;
+        InstalledVerLabel.Text = DisplayInstalledVersion(cfg);
+
+        // Auto-check on launch so the user doesn't have to click "Check"
+        // just to see whether they're current. Fire-and-forget; failures
+        // surface in the status line, never as an exception.
+        _ = CheckAsync(showNotesEvenIfUpToDate: false);
+    }
+
+    /// <summary>
+    /// What version to show in the 'Installed' label. Prefers install-info.json's
+    /// recorded Version, falls back to the running .exe's assembly version, and
+    /// detects the broken "1.0.0" sentinel from pre-0.1.12 installs so we don't
+    /// fake-display it as a real release.
+    /// </summary>
+    private static string DisplayInstalledVersion(InstallConfig cfg)
+    {
+        var asm = Assembly.GetExecutingAssembly().GetName().Version;
+        var stored = cfg.Version;
+
+        // If the stored value is the known-broken sentinel, ignore it.
+        bool brokenSentinel = stored == "1.0.0" || stored == "1.0.0.0";
+
+        if (!string.IsNullOrWhiteSpace(stored) && !brokenSentinel)
+            return stored!;
+
+        // Fall back to the assembly version, but flag the default 1.0.0.0
+        // so the user sees something other than a fake real-looking number.
+        if (asm == null) return "(unknown)";
+        if (asm.Major == 1 && asm.Minor == 0 && asm.Build == 0)
+            return "(unknown — please reinstall to fix)";
+        return asm.ToString(3);
     }
 
     // ===============================================================

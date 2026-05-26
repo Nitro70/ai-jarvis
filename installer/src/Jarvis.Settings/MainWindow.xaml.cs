@@ -33,6 +33,30 @@ public partial class MainWindow : Window
         try { ConfigYamlReader.OverlayAll(_cfg, _cfg.InstallDir); }
         catch { /* best-effort — never block the UI from loading */ }
 
+        // Self-heal corrupted version stamps. Pre-0.1.12 installers stamped
+        // install-info.json with "1.0.0" forever (Jarvis.Setup.dll's default
+        // assembly version) regardless of release. If the running .exe has
+        // a real version (0.x.y), trust IT and overwrite the bogus stamp.
+        try
+        {
+            var asm = System.Reflection.Assembly.GetExecutingAssembly()
+                        .GetName().Version;
+            if (asm != null)
+            {
+                var stored = UpdateChecker.ParseTag(_cfg.Version);
+                bool brokenSentinel = _cfg.Version == "1.0.0"
+                                      || _cfg.Version == "1.0.0.0";
+                bool unknown = stored == null;
+                bool asmIsReal = asm.Major == 0 || asm.Major >= 2;  // not the 1.0.0 default
+                if ((unknown || brokenSentinel || asm > stored) && asmIsReal)
+                {
+                    _cfg.Version = asm.ToString(3);
+                    InstallLocator.Save(_cfg);
+                }
+            }
+        }
+        catch { /* best-effort */ }
+
         InstallDirLabel.Text = _cfg.InstallDir;
 
         // Sweep up any leftover JarvisSettings.exe.old left by a prior update.

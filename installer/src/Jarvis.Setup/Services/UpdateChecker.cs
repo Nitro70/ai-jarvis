@@ -78,8 +78,15 @@ public static class UpdateChecker
     public static bool IsNewer(string latest, string? installed)
     {
         var L = ParseTag(latest);
-        var I = ParseTag(installed);
         if (L == null) return false;
+        // Treat the broken "1.0.0" sentinel as unknown. Pre-0.1.12 installer
+        // stamped this string into every install-info.json regardless of the
+        // actual release (Jarvis.Setup.dll's default assembly version was
+        // 1.0.0.0 because no <Version> was set on it). Without this guard
+        // affected users would see "up to date" forever even when a real
+        // release like 0.1.12 is available.
+        if (installed == "1.0.0" || installed == "1.0.0.0") return true;
+        var I = ParseTag(installed);
         if (I == null) return true; // unknown installed -> assume newer wins
         return L > I;
     }

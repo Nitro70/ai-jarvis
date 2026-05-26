@@ -74,9 +74,14 @@ public static class Installer
 
         // 4. Write config + memory + install-info pointer
         step.Report("Writing config");
-        // Stamp the installed version from the installer's assembly so the
-        // Settings update tab can compare it against the latest GitHub release.
-        cfg.Version ??= typeof(Installer).Assembly.GetName().Version?.ToString(3);
+        // Stamp the installed version from the ENTRY assembly (JarvisInstaller.exe),
+        // not typeof(Installer).Assembly — that's Jarvis.Setup.dll, which had
+        // no <Version> set in earlier releases and stamped "1.0.0" forever
+        // regardless of the actual release. Always overwrite (not ??=) so each
+        // install rewrites a previously-corrupted value.
+        cfg.Version = System.Reflection.Assembly.GetEntryAssembly()
+                        ?.GetName().Version?.ToString(3)
+                      ?? cfg.Version;
         ConfigYamlWriter.Write(cfg);
         InstallLocator.Save(cfg);
 
