@@ -24,7 +24,7 @@
             <TextBlock Margin="0,4,0,0" Opacity="0.6" FontSize="11"
                        Text="Say this name to wake Jarvis up. Common mishearings are added automatically."/>
 
-            <TextBlock Text="Whisper model (speech-to-text)" Margin="0,16,0,4"/>
+            <TextBlock Text="Whisper command model (transcribes what you say AFTER the wake word)" Margin="0,16,0,4"/>
             <ComboBox x:Name="SttCombo" Height="32"
                       SelectionChanged="SttCombo_SelectionChanged">
                 <ComboBoxItem Tag="tiny.en"   Content="tiny.en   — ~40 MB, fastest, occasional mistakes"/>
@@ -32,6 +32,16 @@
                 <ComboBoxItem Tag="small.en"  Content="small.en  — ~250 MB, accurate"/>
                 <ComboBoxItem Tag="medium.en" Content="medium.en — ~770 MB, very accurate, slow on CPU"/>
             </ComboBox>
+
+            <TextBlock Text="Whisper wake-word model (runs continuously - keep this one small)" Margin="0,16,0,4"/>
+            <ComboBox x:Name="WakeCombo" Height="32"
+                      SelectionChanged="WakeCombo_SelectionChanged">
+                <ComboBoxItem Tag="tiny.en"   Content="tiny.en   — ~40 MB, fastest (recommended)"/>
+                <ComboBoxItem Tag="base.en"   Content="base.en   — ~75 MB, more accurate, more CPU"/>
+                <ComboBoxItem Tag="small.en"  Content="small.en  — ~250 MB, overkill for wake-word"/>
+            </ComboBox>
+            <TextBlock Margin="0,4,0,0" Opacity="0.6" FontSize="11" TextWrapping="Wrap"
+                       Text="The wake-word model runs every ~0.5s on a short audio buffer. Bigger models burn more CPU 24/7. Stick with tiny.en unless your wake word is being missed."/>
 
             <CheckBox x:Name="AlwaysOn" Margin="0,18,0,2"
                       IsChecked="{Binding Voice.AlwaysOn, Mode=TwoWay}"

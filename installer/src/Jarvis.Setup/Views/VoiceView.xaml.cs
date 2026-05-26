@@ -17,15 +17,21 @@ public partial class VoiceView : UserControl
         ModeVoice.IsChecked = cfg.Mode == "voice";
         ModeText.IsChecked  = cfg.Mode != "voice";
 
-        foreach (var raw in SttCombo.Items)
+        SelectComboByTag(SttCombo,  cfg.Voice.SttModel,  defaultIndex: 1);  // base.en
+        SelectComboByTag(WakeCombo, cfg.Voice.WakeModel, defaultIndex: 0);  // tiny.en
+    }
+
+    private static void SelectComboByTag(ComboBox box, string? tagValue, int defaultIndex)
+    {
+        foreach (var raw in box.Items)
         {
-            if (raw is ComboBoxItem cbi && (string?)cbi.Tag == cfg.Voice.SttModel)
+            if (raw is ComboBoxItem cbi && (string?)cbi.Tag == tagValue)
             {
-                SttCombo.SelectedItem = cbi;
-                break;
+                box.SelectedItem = cbi;
+                return;
             }
         }
-        if (SttCombo.SelectedItem == null) SttCombo.SelectedIndex = 1; // base.en
+        if (box.Items.Count > defaultIndex) box.SelectedIndex = defaultIndex;
     }
 
     private void Mode_Checked(object sender, RoutedEventArgs e)
@@ -39,5 +45,12 @@ public partial class VoiceView : UserControl
         if (_cfg == null) return;
         if (SttCombo.SelectedItem is ComboBoxItem cbi && cbi.Tag is string tag)
             _cfg.Voice.SttModel = tag;
+    }
+
+    private void WakeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_cfg == null) return;
+        if (WakeCombo.SelectedItem is ComboBoxItem cbi && cbi.Tag is string tag)
+            _cfg.Voice.WakeModel = tag;
     }
 }

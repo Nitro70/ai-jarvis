@@ -229,7 +229,13 @@ async def run_voice_mode(config, llm_backend, log, tts):
     # voice.always_on=true skips the Press-Enter prompt so Jarvis starts
     # listening the moment the process boots. Intended for the startup-app
     # use case where there's nobody at the terminal to press Enter.
-    always_on = bool(voice_cfg.get("always_on", False))
+    raw_always_on = voice_cfg.get("always_on", False)
+    # Be forgiving about how the flag is written - YAML true/false, "true",
+    # "yes", "on", "1" all turn it on. This stops "I set it to true but it
+    # still prompts" mysteries when the user wrote the value as a string.
+    always_on = (raw_always_on is True
+                 or str(raw_always_on).strip().lower() in {"true", "yes", "on", "1"})
+    log.info("voice.always_on = %r -> %s", raw_always_on, always_on)
     if always_on:
         print(
             f"\nJarvis online. Listening for '{wake_word}' immediately "
@@ -241,7 +247,9 @@ async def run_voice_mode(config, llm_backend, log, tts):
         print(
             f"\nJarvis online. Press Enter to start listening for '{wake_word}'.\n"
             "Once active, just say the wake word followed by your request — "
-            "pause when done.\nCtrl+C to quit at any time.\n",
+            "pause when done.\nCtrl+C to quit at any time.\n"
+            "(To skip this prompt: set voice.always_on: true in config.yaml or "
+            "tick 'Always-on' in Settings → Voice.)\n",
             flush=True,
         )
         try:
