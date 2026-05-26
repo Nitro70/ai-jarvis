@@ -265,16 +265,28 @@ async def run_voice_mode(config, llm_backend, log, tts):
 
         reply_parts: list[str] = []
         print("JARVIS: ", end="", flush=True)
-        async for chunk in llm_backend.send(user_text):
-            print(chunk, end="", flush=True)
-            reply_parts.append(chunk)
+        try:
+            async for chunk in llm_backend.send(user_text):
+                print(chunk, end="", flush=True)
+                reply_parts.append(chunk)
+        except Exception as e:  # noqa: BLE001
+            # The backend SHOULD yield friendly error strings instead of
+            # raising (see openai_compat.send). This catch is defense in
+            # depth so a misbehaving future backend can't kill the loop.
+            log.exception("backend send() raised in voice loop")
+            err = f"\n[backend error: {e}]"
+            print(err, end="", flush=True)
+            reply_parts.append(err)
         print()
 
         full_reply = "".join(reply_parts).strip()
         if full_reply:
             log.info("JARVIS: %s", full_reply)
             if tts:
-                await tts.speak(full_reply)
+                try:
+                    await tts.speak(full_reply)
+                except Exception:  # noqa: BLE001
+                    log.exception("TTS failed (continuing)")
         print()
 
 
@@ -310,16 +322,25 @@ async def run_text_mode(_config, llm_backend, log, tts):
 
         reply_parts: list[str] = []
         print("JARVIS: ", end="", flush=True)
-        async for chunk in llm_backend.send(user_text):
-            print(chunk, end="", flush=True)
-            reply_parts.append(chunk)
+        try:
+            async for chunk in llm_backend.send(user_text):
+                print(chunk, end="", flush=True)
+                reply_parts.append(chunk)
+        except Exception as e:  # noqa: BLE001
+            log.exception("backend send() raised in text loop")
+            err = f"\n[backend error: {e}]"
+            print(err, end="", flush=True)
+            reply_parts.append(err)
         print()
 
         full_reply = "".join(reply_parts).strip()
         if full_reply:
             log.info("JARVIS: %s", full_reply)
             if tts:
-                await tts.speak(full_reply)
+                try:
+                    await tts.speak(full_reply)
+                except Exception:  # noqa: BLE001
+                    log.exception("TTS failed (continuing)")
         print()
 
 
