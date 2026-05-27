@@ -52,3 +52,7 @@ publish/
 *.user
 *.suo
 .vs/
+
+# Per-user Claude Code config (agents, hooks, local settings). Lives in
+# ~/.claude/ at user scope instead; nothing project-specific to share.
+.claude/
