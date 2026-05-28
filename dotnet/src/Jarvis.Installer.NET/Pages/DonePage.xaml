@@ -1,0 +1,37 @@
+<Page x:Class="Jarvis.Installer.NET.Pages.DonePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Title="Done">
+    <Grid Background="White">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                    MaxWidth="540" Margin="40">
+            <TextBlock Text="🎉  Jarvis (.NET) is ready"
+                       FontSize="28" FontWeight="Light"
+                       HorizontalAlignment="Center" Margin="0,0,0,16"/>
+            <TextBlock x:Name="InstallPathText" TextWrapping="Wrap"
+                       Opacity="0.7" HorizontalAlignment="Center" Margin="0,0,0,16"
+                       TextAlignment="Center"/>
+
+            <Button x:Name="OpenFolderBtn" Content="Open install folder"
+                    HorizontalAlignment="Center" Margin="0,0,0,16"
+                    Click="OpenFolder_Click"/>
+
+            <Border x:Name="YtmdNote" Visibility="Collapsed"
+                    Background="#FFFCE8" BorderBrush="#E0B000" BorderThickness="1"
+                    CornerRadius="4" Padding="12,10" Margin="0,0,0,18">
+                <TextBlock TextWrapping="Wrap" FontSize="12">
+                    <Run FontWeight="SemiBold">One more step for YouTube Music:</Run>
+                    open the YouTube Music app once, go to
+                    <Run FontWeight="SemiBold">Settings → Plugins</Run>, and enable
+                    <Run FontWeight="SemiBold">API Server</Run>.
+                    Jarvis can't toggle that automatically — it lives inside the app.
+                </TextBlock>
+            </Border>
+
+            <CheckBox x:Name="LaunchCheck" Content="Launch Jarvis now"
+                      IsChecked="True" HorizontalAlignment="Center"/>
+            <TextBlock TextAlignment="Center" Margin="0,24,0,0" Opacity="0.7" FontSize="12"
+                       Text="To change settings later, open 'Jarvis Settings (.NET)' from the Start Menu."/>
+        </StackPanel>
+    </Grid>
+</Page>

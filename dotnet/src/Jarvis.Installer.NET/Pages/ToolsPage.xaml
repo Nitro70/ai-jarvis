@@ -1,0 +1,81 @@
+<Page x:Class="Jarvis.Installer.NET.Pages.ToolsPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Title="Tools">
+    <Grid Background="White">
+        <Grid.Resources>
+            <BooleanToVisibilityConverter x:Key="b2v" />
+        </Grid.Resources>
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20">
+            <StackPanel MaxWidth="600" HorizontalAlignment="Stretch">
+                <TextBlock Text="Tools" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <TextBlock TextWrapping="Wrap" Margin="0,0,0,16" Opacity="0.75"
+                           Text="Which abilities should Jarvis have? You can change these any time."/>
+
+                <CheckBox x:Name="ChkMemory" Margin="0,4"
+                          Content="Read/write personal memory (memory.md)"
+                          Checked="Tool_Changed" Unchecked="Tool_Changed"/>
+                <CheckBox x:Name="ChkSysInfo" Margin="0,4"
+                          Content="System info (CPU/RAM/disk/battery)"
+                          Checked="Tool_Changed" Unchecked="Tool_Changed"/>
+                <CheckBox x:Name="ChkWebBrowser" Margin="0,4"
+                          Content="Open URLs in default browser, search YouTube"
+                          Checked="Tool_Changed" Unchecked="Tool_Changed"/>
+                <CheckBox x:Name="ChkWinApps" Margin="0,4"
+                          Content="Launch apps from the Start Menu"
+                          Checked="Tool_Changed" Unchecked="Tool_Changed"/>
+                <CheckBox x:Name="ChkWinState" Margin="0,4"
+                          Content="Minimize / maximize / close / focus windows"
+                          Checked="Tool_Changed" Unchecked="Tool_Changed"/>
+
+                <CheckBox x:Name="ChkMusicYtmd" Margin="0,4"
+                          Content="Control YouTube Music (play / pause / skip / search)"
+                          Checked="Tool_Changed" Unchecked="Tool_Changed"/>
+                <Border Background="#11000000" CornerRadius="4" Padding="10,8" Margin="22,4,0,0"
+                        Visibility="{Binding ElementName=ChkMusicYtmd, Path=IsChecked, Converter={StaticResource b2v}}">
+                    <StackPanel>
+                        <CheckBox x:Name="ChkMusicYtmdAuto" Content="Auto-install the YouTube Music desktop app"
+                                  Checked="Tool_Changed" Unchecked="Tool_Changed"/>
+                        <TextBlock Margin="22,4,0,0" TextWrapping="Wrap" Opacity="0.75" FontSize="11">
+                            Downloads the latest th-ch/youtube-music app from GitHub and runs its installer silently.
+                            After install you'll need to open the app once and enable
+                            <Run FontWeight="SemiBold">Settings → Plugins → API Server</Run>
+                            (Jarvis can't toggle that for you — it lives inside the app's own settings).
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <!-- Danger zone -->
+                <Border Background="#22FF8888" BorderBrush="Firebrick" BorderThickness="1"
+                        CornerRadius="6" Padding="14" Margin="0,24,0,0">
+                    <StackPanel>
+                        <TextBlock Text="⚠  Danger zone"
+                                   FontSize="16" FontWeight="SemiBold" Foreground="Firebrick"/>
+                        <TextBlock TextWrapping="Wrap" Margin="0,8,0,8" Opacity="0.9">
+                            Enables <Run FontWeight="SemiBold">run_shell</Run> /
+                            <Run FontWeight="SemiBold">read_file</Run> /
+                            <Run FontWeight="SemiBold">write_file</Run> /
+                            <Run FontWeight="SemiBold">list_directory</Run>.
+                            The LLM gets full shell access at whatever privilege level Jarvis is running.
+                            That includes the ability to delete files, send emails, install software, or
+                            anything else your account can do.
+                            <LineBreak/><LineBreak/>
+                            Risks:
+                            <LineBreak/>• Whisper mistranscribes "delete the photos" as something destructive.
+                            <LineBreak/>• A web page or document with prompt injection convinces Jarvis to act on it.
+                            <LineBreak/>• The model just makes a mistake.
+                            <LineBreak/><LineBreak/>
+                            You must tick BOTH boxes below to enable.
+                        </TextBlock>
+                        <CheckBox x:Name="ChkDangerShell" Margin="0,4"
+                                  Content="Enable dangerous shell &amp; file tools"
+                                  Checked="Tool_Changed" Unchecked="Tool_Changed"/>
+                        <CheckBox x:Name="ChkDangerAck" Margin="0,4"
+                                  Content="I understand the risks and accept full responsibility."
+                                  Checked="Tool_Changed" Unchecked="Tool_Changed"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

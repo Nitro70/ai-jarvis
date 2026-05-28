@@ -94,11 +94,33 @@ jobs:
           -p:EnableCompressionInSingleFile=true
           -o publish/app
 
+      - name: Publish JarvisInstaller-NET.exe
+        working-directory: dotnet
+        run: >
+          dotnet publish src/Jarvis.Installer.NET/Jarvis.Installer.NET.csproj
+          -c Release -r win-x64 --self-contained
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -o publish/installer
+
+      - name: Publish JarvisSettings-NET.exe
+        working-directory: dotnet
+        run: >
+          dotnet publish src/Jarvis.Settings.NET/Jarvis.Settings.NET.csproj
+          -c Release -r win-x64 --self-contained
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -o publish/settings
+
       - name: Stage .NET-edition artifacts
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path artifacts-dotnet -Force | Out-Null
-          Copy-Item dotnet/publish/app/Jarvis-NET.exe artifacts-dotnet/
+          Copy-Item dotnet/publish/app/Jarvis-NET.exe                  artifacts-dotnet/
+          Copy-Item dotnet/publish/installer/JarvisInstaller-NET.exe   artifacts-dotnet/
+          Copy-Item dotnet/publish/settings/JarvisSettings-NET.exe     artifacts-dotnet/
           Get-ChildItem artifacts-dotnet | Format-Table Name, Length
 
       - name: Upload .NET-edition artifacts

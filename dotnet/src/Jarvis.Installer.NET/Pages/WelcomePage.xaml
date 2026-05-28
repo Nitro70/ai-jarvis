@@ -1,0 +1,39 @@
+<Page x:Class="Jarvis.Installer.NET.Pages.WelcomePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Title="Welcome">
+    <Grid Background="White">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                    MaxWidth="600" Margin="40">
+            <TextBlock Text="Welcome to Jarvis (.NET)"
+                       FontSize="32" FontWeight="Light" Margin="0,0,0,8"/>
+            <TextBlock TextWrapping="Wrap" FontSize="14" Opacity="0.8" Margin="0,0,0,18">
+                The native .NET edition of Jarvis — a personal voice and text
+                assistant inspired by Tony Stark's AI.
+                This installer will:
+            </TextBlock>
+            <StackPanel Margin="20,0,0,20">
+                <TextBlock Text="•  Download the latest Jarvis-NET.exe from GitHub." TextWrapping="Wrap" Margin="0,4"/>
+                <TextBlock Text="•  Download the matching Jarvis Settings app." TextWrapping="Wrap" Margin="0,4"/>
+                <TextBlock Text="•  Ask you which AI backend, voice, and tools you want." TextWrapping="Wrap" Margin="0,4"/>
+                <TextBlock Text="•  Write your config.yaml and (optional) memory.md." TextWrapping="Wrap" Margin="0,4"/>
+                <TextBlock Text="•  Create Start Menu shortcuts." TextWrapping="Wrap" Margin="0,4"/>
+            </StackPanel>
+            <TextBlock TextWrapping="Wrap" Opacity="0.65" FontSize="12">
+                Self-contained — no Python or .NET runtime needed.
+                Per-user install — no administrator prompt.
+                You can change every setting later via "Jarvis Settings (.NET)" in the Start Menu.
+            </TextBlock>
+            <Border Background="#FFF5E0" BorderBrush="#E0B000" BorderThickness="1"
+                    CornerRadius="4" Padding="12,8" Margin="0,16,0,0">
+                <TextBlock TextWrapping="Wrap" FontSize="11">
+                    <Run FontWeight="SemiBold">Preview release.</Run>
+                    Voice mode and the Claude (agent / API) backends are still
+                    landing in the .NET edition — text mode + the OpenAI-compatible
+                    backend work today. Your config will be honoured as those
+                    features arrive.
+                </TextBlock>
+            </Border>
+        </StackPanel>
+    </Grid>
+</Page>

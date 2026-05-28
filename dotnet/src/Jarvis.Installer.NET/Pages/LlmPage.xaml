@@ -1,0 +1,110 @@
+<Page x:Class="Jarvis.Installer.NET.Pages.LlmPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Title="LLM backend">
+    <Grid Background="White">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20">
+            <StackPanel MaxWidth="600" HorizontalAlignment="Stretch">
+                <TextBlock Text="LLM backend"
+                           FontSize="22" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <TextBlock TextWrapping="Wrap" Margin="0,0,0,16" Opacity="0.75"
+                           Text="Pick which model powers Jarvis. You can change this any time in Settings."/>
+
+                <TextBlock Text="Backend" Margin="0,8,0,4"/>
+                <ComboBox x:Name="BackendCombo" Height="32"
+                          SelectionChanged="BackendCombo_SelectionChanged">
+                    <ComboBoxItem Tag="openai_compat" Content="OpenAI-compatible (OpenAI / Groq / xAI / Ollama / LM Studio)"/>
+                    <ComboBoxItem Tag="claude_agent"  Content="Claude (your Pro/Max subscription via Claude Code CLI)"/>
+                    <ComboBoxItem Tag="claude_api"    Content="Claude (Anthropic API key)"/>
+                </ComboBox>
+
+                <!-- Compatibility warning for backends not yet implemented in .NET edition -->
+                <Border x:Name="UnsupportedNotice" Visibility="Collapsed"
+                        Background="#FFF5E0" BorderBrush="#E0B000" BorderThickness="1"
+                        CornerRadius="4" Padding="12,8" Margin="0,8,0,0">
+                    <TextBlock x:Name="UnsupportedText" TextWrapping="Wrap" FontSize="12"/>
+                </Border>
+
+                <!-- Per-backend helper text -->
+                <Border Background="#11000000" CornerRadius="4" Padding="10,8" Margin="0,8,0,0">
+                    <TextBlock x:Name="HelpText" TextWrapping="Wrap" Opacity="0.85"/>
+                </Border>
+
+                <!-- Base URL (openai_compat only) -->
+                <StackPanel x:Name="BaseUrlPanel" Margin="0,16,0,0">
+                    <TextBlock Text="Base URL" Margin="0,0,0,4"/>
+                    <ComboBox x:Name="BaseUrlPreset" Height="32" IsEditable="True"
+                              TextBoxBase.TextChanged="BaseUrl_TextChanged">
+                        <ComboBoxItem Content="https://api.groq.com/openai/v1"/>
+                        <ComboBoxItem Content="https://api.openai.com/v1"/>
+                        <ComboBoxItem Content="https://api.x.ai/v1"/>
+                        <ComboBoxItem Content="http://localhost:11434/v1"/>
+                        <ComboBoxItem Content="http://localhost:1234/v1"/>
+                    </ComboBox>
+                </StackPanel>
+
+                <!-- API key (claude_api + openai_compat) -->
+                <StackPanel x:Name="ApiKeyPanel" Margin="0,16,0,0">
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="API key"/>
+                        <TextBlock x:Name="ApiKeyOptionalLabel" Grid.Column="1"
+                                   Text=" (optional for Ollama / LM Studio)" Opacity="0.6"
+                                   FontSize="11" VerticalAlignment="Bottom" Margin="6,0,0,2"
+                                   Visibility="Collapsed"/>
+                    </Grid>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <PasswordBox x:Name="ApiKeyPwd" Height="32" Grid.Column="0"
+                                     PasswordChanged="ApiKeyPwd_PasswordChanged"/>
+                        <ToggleButton x:Name="ShowKeyToggle" Content="Show" Grid.Column="1"
+                                      Margin="6,0,0,0" Padding="10,0" Height="32"
+                                      Click="ShowKeyToggle_Click"/>
+                    </Grid>
+                    <TextBox x:Name="ApiKeyVisible" Height="32" Margin="0,6,0,0" Visibility="Collapsed"
+                             TextChanged="ApiKeyVisible_TextChanged"/>
+                </StackPanel>
+
+                <!-- Tool-calling toggle (openai_compat only) -->
+                <StackPanel x:Name="DisableToolsPanel" Margin="0,12,0,0">
+                    <CheckBox x:Name="DisableToolsCheck" Content="Disable tool calls (chat only)"
+                              Checked="DisableToolsCheck_Changed" Unchecked="DisableToolsCheck_Changed"/>
+                    <TextBlock Margin="22,4,0,0" TextWrapping="Wrap" Opacity="0.65" FontSize="11">
+                        Tick this for older / smaller local models that don't support OpenAI-style
+                        function calling — llama2 base, plain Mistral, etc.
+                        Jarvis still chats, but loses the ability to play music, open apps, etc.
+                        Llama-3.x, Mixtral, Qwen2.5, and most newer models do support tools — leave
+                        this off for those.
+                    </TextBlock>
+                </StackPanel>
+
+                <!-- Model -->
+                <TextBlock Text="Model" Margin="0,16,0,4"/>
+                <ComboBox x:Name="ModelCombo" Height="32" IsEditable="True"
+                          TextBoxBase.TextChanged="Model_TextChanged"/>
+
+                <TextBlock Text="Max response tokens" Margin="0,16,0,4"/>
+                <TextBox x:Name="MaxTokensBox" Height="32" MaxLength="6"
+                         TextChanged="MaxTokens_TextChanged"/>
+
+                <!-- Test button + status -->
+                <Grid Margin="0,20,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Button x:Name="TestBtn" Content="Test connection" Height="32" Padding="14,0"
+                            Grid.Column="0" Click="TestBtn_Click"/>
+                    <TextBlock x:Name="TestStatus" Grid.Column="1" VerticalAlignment="Center"
+                               Margin="12,0,0,0" TextWrapping="Wrap"/>
+                </Grid>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

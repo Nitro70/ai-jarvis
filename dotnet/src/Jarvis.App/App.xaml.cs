@@ -96,6 +96,51 @@ public partial class App : Application
                         tools.Add(new ForgetTool(memPath,
                             log.CreateLogger<ForgetTool>()));
                     }
+                    if (cfg.Tools.WebBrowser.Enabled)
+                    {
+                        tools.Add(new OpenUrlTool(log.CreateLogger<OpenUrlTool>()));
+                        tools.Add(new PlayYoutubeVideoTool(log.CreateLogger<PlayYoutubeVideoTool>()));
+                    }
+                    if (cfg.Tools.WindowsApps.Enabled)
+                    {
+                        tools.Add(new WindowsAppsTool(log.CreateLogger<WindowsAppsTool>()));
+                    }
+                    if (cfg.Tools.WindowsState.Enabled)
+                    {
+                        // WindowsStateTool's subagent split this into 6 tools —
+                        // minimize/maximize/restore/focus/close/list. Lazy-start the
+                        // foreground tracker the first time any of them is invoked.
+                        tools.Add(new MinimizeWindowTool(log.CreateLogger<MinimizeWindowTool>()));
+                        tools.Add(new MaximizeWindowTool(log.CreateLogger<MaximizeWindowTool>()));
+                        tools.Add(new RestoreWindowTool(log.CreateLogger<RestoreWindowTool>()));
+                        tools.Add(new FocusWindowTool(log.CreateLogger<FocusWindowTool>()));
+                        tools.Add(new CloseWindowTool(log.CreateLogger<CloseWindowTool>()));
+                        tools.Add(new ListOpenWindowsTool(log.CreateLogger<ListOpenWindowsTool>()));
+                    }
+                    if (cfg.Tools.MusicYtmd.Enabled)
+                    {
+                        // MusicYtmdTool is composite — one parent class that owns the
+                        // shared YtmdClient and exposes 7 sub-tools via .Tools.
+                        var ytmd = new MusicYtmdTool(
+                            cfg.Tools.MusicYtmd.Port,
+                            cfg.Tools.MusicYtmd.ExePath,
+                            installDir,
+                            log.CreateLogger<MusicYtmdTool>());
+                        foreach (var t in ytmd.Tools) tools.Add(t);
+                    }
+                    // Dangerous shell — double-gated. ONLY register if BOTH enabled
+                    // AND ack are true. Either alone is not enough.
+                    if (DangerousShellTools.IsEnabled(cfg.Tools.DangerousShell))
+                    {
+                        tools.Add(new RunShellTool(cfg.Tools.DangerousShell,
+                            log.CreateLogger<RunShellTool>()));
+                        tools.Add(new ReadFileTool(cfg.Tools.DangerousShell,
+                            log.CreateLogger<ReadFileTool>()));
+                        tools.Add(new WriteFileTool(cfg.Tools.DangerousShell,
+                            log.CreateLogger<WriteFileTool>()));
+                        tools.Add(new ListDirectoryTool(cfg.Tools.DangerousShell,
+                            log.CreateLogger<ListDirectoryTool>()));
+                    }
                     return new ToolRegistry(tools);
                 });
 

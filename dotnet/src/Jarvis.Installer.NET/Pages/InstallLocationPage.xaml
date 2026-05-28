@@ -1,0 +1,31 @@
+<Page x:Class="Jarvis.Installer.NET.Pages.InstallLocationPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Title="Install location">
+    <Grid Background="White" Margin="40,30">
+        <StackPanel MaxWidth="640" HorizontalAlignment="Stretch">
+            <TextBlock Text="Where should Jarvis (.NET) be installed?"
+                       FontSize="22" FontWeight="SemiBold" Margin="0,0,0,8"/>
+            <TextBlock TextWrapping="Wrap" Opacity="0.75" Margin="0,0,0,20">
+                The Jarvis-NET.exe binary, your config.yaml, and your memory.md
+                will live here. Roughly 200 MB total — the .NET edition does not
+                download Python or Whisper models.
+            </TextBlock>
+
+            <TextBlock Text="Install folder" Margin="0,0,0,4"/>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="PathBox" Height="32"
+                         TextChanged="PathBox_TextChanged"/>
+                <Button Grid.Column="1" Content="Browse..." Height="32"
+                        Margin="6,0,0,0" Click="Browse_Click"/>
+            </Grid>
+
+            <TextBlock x:Name="HintText" Margin="0,8,0,0"
+                       TextWrapping="Wrap" FontSize="12" Opacity="0.7"/>
+        </StackPanel>
+    </Grid>
+</Page>

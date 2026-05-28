@@ -1,0 +1,94 @@
+<Page x:Class="Jarvis.Installer.NET.Pages.VoicePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Title="Voice">
+    <Grid Background="White">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20">
+            <StackPanel MaxWidth="600" HorizontalAlignment="Stretch">
+                <TextBlock Text="Voice &amp; mode"
+                           FontSize="22" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <TextBlock TextWrapping="Wrap" Margin="0,0,0,16" Opacity="0.75"
+                           Text="How do you want to talk to Jarvis?"/>
+
+                <Border Background="#FFF5E0" BorderBrush="#E0B000" BorderThickness="1"
+                        CornerRadius="4" Padding="12,8" Margin="0,0,0,16">
+                    <TextBlock TextWrapping="Wrap" FontSize="11">
+                        <Run FontWeight="SemiBold">Voice mode is not active yet in the .NET edition.</Run>
+                        Text mode works today; voice (wake-word + Whisper + Edge-TTS) lands in v0.4.0.
+                        Configure your preferences anyway — they're saved to config.yaml and will
+                        light up the moment the voice runtime ships.
+                    </TextBlock>
+                </Border>
+
+                <TextBlock Text="Default mode" Margin="0,0,0,4"/>
+                <StackPanel Orientation="Horizontal">
+                    <RadioButton x:Name="ModeVoice" Content="Voice (wake word + mic)"
+                                 GroupName="Mode" Margin="0,0,16,0"
+                                 Checked="Mode_Checked"/>
+                    <RadioButton x:Name="ModeText" Content="Text (type in terminal)"
+                                 GroupName="Mode" Checked="Mode_Checked"/>
+                </StackPanel>
+
+                <TextBlock Text="Wake word" Margin="0,16,0,4"/>
+                <TextBox x:Name="WakeWordBox" Height="32" TextChanged="WakeWord_TextChanged"/>
+                <TextBlock Margin="0,4,0,0" Opacity="0.6" FontSize="11"
+                           Text="Say this name to wake Jarvis up. Common mishearings are added automatically."/>
+
+                <TextBlock Text="Whisper command model (transcribes what you say AFTER the wake word)" Margin="0,16,0,4"/>
+                <ComboBox x:Name="SttCombo" Height="32"
+                          SelectionChanged="SttCombo_SelectionChanged">
+                    <ComboBoxItem Tag="tiny.en"   Content="tiny.en   — ~40 MB, fastest, occasional mistakes"/>
+                    <ComboBoxItem Tag="base.en"   Content="base.en   — ~75 MB, balanced (recommended)"/>
+                    <ComboBoxItem Tag="small.en"  Content="small.en  — ~250 MB, accurate"/>
+                    <ComboBoxItem Tag="medium.en" Content="medium.en — ~770 MB, very accurate, slow on CPU"/>
+                </ComboBox>
+
+                <TextBlock Text="Whisper wake-word model (runs continuously - keep this one small)" Margin="0,16,0,4"/>
+                <ComboBox x:Name="WakeCombo" Height="32"
+                          SelectionChanged="WakeCombo_SelectionChanged">
+                    <ComboBoxItem Tag="tiny.en"   Content="tiny.en   — ~40 MB, fastest (recommended)"/>
+                    <ComboBoxItem Tag="base.en"   Content="base.en   — ~75 MB, more accurate, more CPU"/>
+                    <ComboBoxItem Tag="small.en"  Content="small.en  — ~250 MB, overkill for wake-word"/>
+                </ComboBox>
+                <TextBlock Margin="0,4,0,0" Opacity="0.6" FontSize="11" TextWrapping="Wrap"
+                           Text="The wake-word model runs every ~0.5s on a short audio buffer. Bigger models burn more CPU 24/7. Stick with tiny.en unless your wake word is being missed."/>
+
+                <CheckBox x:Name="AlwaysOn" Margin="0,18,0,2"
+                          Checked="AlwaysOn_Changed" Unchecked="AlwaysOn_Changed"
+                          Content="Always-on conversational mode"/>
+                <TextBlock Margin="22,0,0,4" Opacity="0.65" FontSize="11" TextWrapping="Wrap">
+                    Skips the 'Press Enter to start' prompt at launch. After Jarvis replies, listens
+                    for a follow-up command for the duration below
+                    <Run FontStyle="Italic">without</Run> requiring the wake word again. Stay quiet
+                    and it drops back to wake-word mode.
+                </TextBlock>
+                <StackPanel Orientation="Horizontal" Margin="22,6,0,0">
+                    <TextBlock Text="Follow-up window:" VerticalAlignment="Center" Opacity="0.8"/>
+                    <TextBox x:Name="FollowUpBox" Width="60" Height="26" Margin="8,0,4,0"
+                             VerticalContentAlignment="Center"
+                             TextChanged="FollowUp_TextChanged"
+                             IsEnabled="{Binding ElementName=AlwaysOn, Path=IsChecked}"/>
+                    <TextBlock Text="seconds" VerticalAlignment="Center" Opacity="0.8"/>
+                </StackPanel>
+
+                <CheckBox x:Name="TtsEnabled" Margin="0,12,0,6"
+                          Checked="TtsEnabled_Changed" Unchecked="TtsEnabled_Changed"
+                          Content="Speak replies aloud (Edge TTS)"/>
+
+                <TextBlock Text="TTS voice" Margin="0,8,0,4"/>
+                <ComboBox x:Name="TtsCombo" Height="32" IsEditable="True"
+                          TextBoxBase.TextChanged="TtsCombo_TextChanged">
+                    <ComboBoxItem Content="en-GB-RyanNeural"/>
+                    <ComboBoxItem Content="en-GB-SoniaNeural"/>
+                    <ComboBoxItem Content="en-US-GuyNeural"/>
+                    <ComboBoxItem Content="en-US-JennyNeural"/>
+                    <ComboBoxItem Content="en-AU-WilliamNeural"/>
+                    <ComboBoxItem Content="en-IE-ConnorNeural"/>
+                </ComboBox>
+                <TextBlock Margin="0,4,0,0" Opacity="0.6" FontSize="11">
+                    <Run Text="Run "/><Run Text="edge-tts --list-voices" FontFamily="Consolas"/><Run Text=" to see all options."/>
+                </TextBlock>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>
