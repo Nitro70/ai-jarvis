@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Windows;
+using Jarvis.Core;
 using Jarvis.Core.Conversation;
 using Jarvis.Core.Llm;
 using Jarvis.Core.Tools;
@@ -166,6 +167,19 @@ public partial class App : Application
                 });
 
                 services.AddSingleton<ConversationOrchestrator>();
+                services.AddSingleton<VoiceController>(sp =>
+                {
+                    var orch = sp.GetRequiredService<ConversationOrchestrator>();
+                    // VoiceController emits events through the orchestrator's
+                    // shared event channel so the UI sees them on the same
+                    // stream as chat events. Fire-and-forget IProgress.
+                    var events = new Progress<JarvisEvent>(orch.Emit);
+                    return new VoiceController(
+                        cfg, orch,
+                        sp.GetRequiredService<ILoggerFactory>(),
+                        events,
+                        installDir);
+                });
                 services.AddSingleton<MainWindow>();
             })
             .Build();

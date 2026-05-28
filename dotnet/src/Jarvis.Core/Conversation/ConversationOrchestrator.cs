@@ -35,6 +35,17 @@ public sealed class ConversationOrchestrator : IAsyncDisposable
     public IAsyncEnumerable<JarvisEvent> Events => _events.Reader.ReadAllAsync();
 
     /// <summary>
+    /// External producers (the voice loop, lifecycle hooks, etc.) can push
+    /// events into the same stream the UI subscribes to via this hook. Fire
+    /// and forget; never throws — if the channel is closed (during shutdown)
+    /// the event is silently dropped.
+    /// </summary>
+    public void Emit(JarvisEvent ev)
+    {
+        try { _events.Writer.TryWrite(ev); } catch { /* shutting down */ }
+    }
+
+    /// <summary>
     /// Send one user message and pump the resulting events. Returns when the
     /// reply is complete (or errored). UI calls this from the input handler.
     /// </summary>

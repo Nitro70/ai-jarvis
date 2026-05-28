@@ -16,6 +16,7 @@ namespace Jarvis.App;
 public partial class MainWindow : Window
 {
     private readonly ConversationOrchestrator _orchestrator;
+    private readonly VoiceController _voice;
     private readonly InstallConfig _cfg;
 
     /// <summary>Lines shown in the chat log. WPF-bound, mutated only on the
@@ -24,9 +25,10 @@ public partial class MainWindow : Window
 
     private ChatLine? _streamingLine;  // the in-progress Jarvis line being appended to
 
-    public MainWindow(ConversationOrchestrator orchestrator, InstallConfig cfg)
+    public MainWindow(ConversationOrchestrator orchestrator, VoiceController voice, InstallConfig cfg)
     {
         _orchestrator = orchestrator;
+        _voice = voice;
         _cfg = cfg;
         InitializeComponent();
         ChatItems.ItemsSource = Lines;
@@ -37,11 +39,22 @@ public partial class MainWindow : Window
         {
             Kind = LineKind.Info,
             Speaker = "Jarvis",
-            Text = "Ready. Type a message below to talk.",
+            Text = "Ready. Type a message below, or click 🎤 to enable voice mode.",
         });
 
         // Start the event pump as a background loop on the dispatcher's loop.
         _ = PumpEventsAsync();
+
+        // Auto-start voice loop if config says so (mode=voice or always_on).
+        // Loaded event fires AFTER the constructor's DI graph is settled.
+        Loaded += async (_, __) =>
+        {
+            if (_cfg.Mode == "voice" || _cfg.Voice.AlwaysOn)
+            {
+                MicBtn.IsChecked = true;
+                await _voice.StartAsync();
+            }
+        };
     }
 
     // ===================================================================
@@ -184,6 +197,38 @@ public partial class MainWindow : Window
         if (string.IsNullOrEmpty(text)) return;
         InputBox.Text = "";
         await _orchestrator.SendAsync(text, CancellationToken.None);
+    }
+
+    private async void MicBtn_Click(object sender, RoutedEventArgs e)
+    {
+        // ToggleButton flips IsChecked BEFORE this handler runs, so the new
+        // state IS what we should sync to.
+        try
+        {
+            MicBtn.IsEnabled = false;
+            if (MicBtn.IsChecked == true)
+            {
+                await _voice.StartAsync();
+            }
+            else
+            {
+                await _voice.StopAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Lines.Add(new ChatLine
+            {
+                Kind = LineKind.Error,
+                Speaker = "Voice",
+                Text = $"Voice toggle failed: {ex.Message}",
+            });
+            MicBtn.IsChecked = _voice.IsRunning;
+        }
+        finally
+        {
+            MicBtn.IsEnabled = true;
+        }
     }
 
     // ===================================================================
