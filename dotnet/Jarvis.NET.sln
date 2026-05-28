@@ -1,0 +1,28 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jarvis.Setup.NET", "src\Jarvis.Setup.NET\Jarvis.Setup.NET.csproj", "{AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jarvis.Core", "src\Jarvis.Core\Jarvis.Core.csproj", "{BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jarvis.App", "src\Jarvis.App\Jarvis.App.csproj", "{CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

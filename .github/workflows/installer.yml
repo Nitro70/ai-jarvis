@@ -8,6 +8,7 @@ on:
       - main
     paths:
       - 'installer/**'
+      - 'dotnet/**'
       - '.github/workflows/installer.yml'
   workflow_dispatch:
 
@@ -16,12 +17,13 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  # =========================================================================
+  #  Python edition: WPF installer + Settings.exe (existing artifacts)
+  # =========================================================================
+  build-python-edition:
     runs-on: windows-latest
-
     steps:
       - uses: actions/checkout@v4
-
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
         with:
@@ -35,8 +37,7 @@ jobs:
         working-directory: installer
         run: >
           dotnet publish src/Jarvis.Settings/Jarvis.Settings.csproj
-          -c Release -r win-x64
-          --self-contained
+          -c Release -r win-x64 --self-contained
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
           -p:EnableCompressionInSingleFile=true
@@ -46,33 +47,89 @@ jobs:
         working-directory: installer
         run: >
           dotnet publish src/Jarvis.Installer/Jarvis.Installer.csproj
-          -c Release -r win-x64
-          --self-contained
+          -c Release -r win-x64 --self-contained
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
           -p:EnableCompressionInSingleFile=true
           -o publish/installer
 
-      - name: Stage artifacts
+      - name: Stage Python-edition artifacts
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Path artifacts -Force | Out-Null
-          Copy-Item installer/publish/installer/JarvisInstaller.exe artifacts/
-          Copy-Item installer/publish/settings/JarvisSettings.exe   artifacts/
-          Get-ChildItem artifacts | Format-Table Name, Length
+          New-Item -ItemType Directory -Path artifacts-python -Force | Out-Null
+          Copy-Item installer/publish/installer/JarvisInstaller.exe artifacts-python/
+          Copy-Item installer/publish/settings/JarvisSettings.exe   artifacts-python/
+          Get-ChildItem artifacts-python | Format-Table Name, Length
 
-      - name: Upload artifacts
+      - name: Upload Python-edition artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: jarvis-installer
-          path: artifacts/*.exe
+          name: artifacts-python
+          path: artifacts-python/*.exe
           if-no-files-found: error
 
-      - name: Attach to release
-        if: startsWith(github.ref, 'refs/tags/v')
+  # =========================================================================
+  #  .NET edition: Jarvis-NET.exe (Phase 1 — installer/settings come Phase 2)
+  # =========================================================================
+  build-dotnet-edition:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        working-directory: dotnet
+        run: dotnet restore Jarvis.NET.sln
+
+      - name: Publish Jarvis-NET.exe
+        working-directory: dotnet
+        run: >
+          dotnet publish src/Jarvis.App/Jarvis.App.csproj
+          -c Release -r win-x64 --self-contained
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -o publish/app
+
+      - name: Stage .NET-edition artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path artifacts-dotnet -Force | Out-Null
+          Copy-Item dotnet/publish/app/Jarvis-NET.exe artifacts-dotnet/
+          Get-ChildItem artifacts-dotnet | Format-Table Name, Length
+
+      - name: Upload .NET-edition artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-dotnet
+          path: artifacts-dotnet/*.exe
+          if-no-files-found: error
+
+  # =========================================================================
+  #  Release job: only on tag push, combines both editions' artifacts
+  # =========================================================================
+  release:
+    needs: [build-python-edition, build-dotnet-edition]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    steps:
+      - name: Download Python-edition artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: artifacts-python
+          path: combined/
+      - name: Download .NET-edition artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: artifacts-dotnet
+          path: combined/
+      - name: Attach all artifacts to release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/*.exe
+          files: combined/*.exe
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
