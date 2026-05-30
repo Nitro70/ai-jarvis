@@ -145,25 +145,28 @@ public partial class App : Application
                     return new ToolRegistry(tools);
                 });
 
-                // Backend — Phase 1 only ships openai_compat. Other backends
-                // (claude_api, claude_agent) are Phase 5 work.
+                // Backend — switch on cfg.Llm.Backend. All three Python-edition
+                // backends now have C# ports as of v1.0.0.
                 services.AddSingleton<ILlmBackend>(sp =>
                 {
-                    if (cfg.Llm.Backend != "openai_compat")
+                    var systemPrompt = cfg.Persona.SystemPrompt;
+                    var tools = sp.GetRequiredService<ToolRegistry>();
+                    var lf = sp.GetRequiredService<ILoggerFactory>();
+                    return cfg.Llm.Backend switch
                     {
-                        // Don't crash — yield a friendly warning. User can switch
-                        // backend in Settings once more backends ship.
-                        MessageBox.Show(
-                            $"Backend '{cfg.Llm.Backend}' isn't supported in the .NET " +
-                            "edition yet (Phase 1 ships openai_compat only). Falling " +
-                            "back to openai_compat with whatever you configured.",
-                            "Jarvis", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    }
-                    return new OpenAiCompatBackend(
-                        cfg,
-                        cfg.Persona.SystemPrompt,
-                        sp.GetRequiredService<ToolRegistry>(),
-                        sp.GetRequiredService<ILogger<OpenAiCompatBackend>>());
+                        "claude_agent" => new ClaudeAgentBackend(
+                            cfg, systemPrompt, tools,
+                            lf.CreateLogger<ClaudeAgentBackend>()),
+                        "claude_api" => new ClaudeApiBackend(
+                            cfg, systemPrompt, tools,
+                            lf.CreateLogger<ClaudeApiBackend>()),
+                        // Default for openai_compat AND any unknown backend value
+                        // (so a typo in config.yaml doesn't crash the app — falls
+                        // back to the most permissive option).
+                        _ => new OpenAiCompatBackend(
+                            cfg, systemPrompt, tools,
+                            lf.CreateLogger<OpenAiCompatBackend>()),
+                    };
                 });
 
                 // TTS sink — only register if enabled in config. When absent,
