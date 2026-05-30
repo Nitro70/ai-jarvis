@@ -166,7 +166,21 @@ public partial class App : Application
                         sp.GetRequiredService<ILogger<OpenAiCompatBackend>>());
                 });
 
-                services.AddSingleton<ConversationOrchestrator>();
+                // TTS sink — only register if enabled in config. When absent,
+                // ConversationOrchestrator's ITtsSink? param stays null and the
+                // reply just doesn't get spoken.
+                if (cfg.Voice.Tts.Enabled)
+                {
+                    services.AddSingleton<ITtsSink>(sp =>
+                        new Jarvis.Core.Voice.EdgeTtsSink(
+                            cfg.Voice.Tts.Voice,
+                            sp.GetRequiredService<ILoggerFactory>()));
+                }
+
+                services.AddSingleton<ConversationOrchestrator>(sp => new ConversationOrchestrator(
+                    sp.GetRequiredService<ILlmBackend>(),
+                    sp.GetRequiredService<ILogger<ConversationOrchestrator>>(),
+                    sp.GetService<ITtsSink>()));
                 services.AddSingleton<VoiceController>(sp =>
                 {
                     var orch = sp.GetRequiredService<ConversationOrchestrator>();

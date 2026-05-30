@@ -21,14 +21,19 @@ namespace Jarvis.Core.Conversation;
 public sealed class ConversationOrchestrator : IAsyncDisposable
 {
     private readonly ILlmBackend _backend;
+    private readonly ITtsSink? _tts;
     private readonly ILogger<ConversationOrchestrator> _log;
     private readonly Channel<JarvisEvent> _events = Channel.CreateUnbounded<JarvisEvent>(
         new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
 
-    public ConversationOrchestrator(ILlmBackend backend, ILogger<ConversationOrchestrator> log)
+    public ConversationOrchestrator(
+        ILlmBackend backend,
+        ILogger<ConversationOrchestrator> log,
+        ITtsSink? tts = null)
     {
         _backend = backend;
         _log = log;
+        _tts = tts;
     }
 
     /// <summary>Consume all events emitted by the conversation.</summary>
@@ -94,6 +99,25 @@ public sealed class ConversationOrchestrator : IAsyncDisposable
             {
                 _log.LogInformation("JARVIS: {Reply}", full);
                 await _events.Writer.WriteAsync(new JarvisReplyComplete(full), ct);
+
+                // TTS — fire-and-forget'ish: we await so Speaking state is
+                // accurate, but a TTS failure must NOT cancel the conversation.
+                // EdgeTtsSink already swallows non-cancellation exceptions
+                // internally; we still guard here so any future ITtsSink that
+                // forgets to do that doesn't crash the loop.
+                if (_tts != null)
+                {
+                    await _events.Writer.WriteAsync(new StateChanged(JarvisState.Speaking), ct);
+                    try
+                    {
+                        await _tts.SpeakAsync(full, ct);
+                    }
+                    catch (OperationCanceledException) { throw; }
+                    catch (Exception ex)
+                    {
+                        _log.LogWarning(ex, "TTS playback failed (continuing)");
+                    }
+                }
             }
             await _events.Writer.WriteAsync(new StateChanged(JarvisState.Idle), ct);
         }
