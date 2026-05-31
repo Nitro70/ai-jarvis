@@ -326,6 +326,15 @@ public sealed class ClaudeAgentBackend : ILlmBackend
             {
                 spawnError = "Couldn't start Claude Code: Process.Start returned null.";
             }
+            else
+            {
+                // Tie claude.exe (and its children — the Jarvis-NET.exe
+                // --mcp-server bridge inherits the same job) to a kill-on-close
+                // job object owned by THIS process. If the main Jarvis-NET.exe
+                // is force-killed mid-turn, Windows kills claude + the MCP
+                // child automatically rather than orphaning them.
+                ChildProcessJob.AssignProcess(proc, _log);
+            }
         }
         catch (Exception ex)
         {

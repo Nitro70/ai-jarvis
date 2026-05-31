@@ -26,25 +26,9 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        // --mcp-server mode: instead of showing the WPF window, run as a
-        // headless MCP stdio server exposing Jarvis's tools to Claude Code.
-        // The claude_agent backend launches us this way (via --mcp-config) so
-        // Claude Code can call play_music / open_app / etc. Must run BEFORE
-        // the single-instance mutex (this is a short-lived child process of
-        // the claude CLI and must NOT collide with a running UI instance).
-        for (int i = 0; i < e.Args.Length; i++)
-        {
-            if (string.Equals(e.Args[i], "--mcp-server", StringComparison.OrdinalIgnoreCase))
-            {
-                string? cfgDir = null;
-                if (i + 2 < e.Args.Length &&
-                    string.Equals(e.Args[i + 1], "--install-dir", StringComparison.OrdinalIgnoreCase))
-                    cfgDir = e.Args[i + 2];
-                int code = RunMcpServerBlocking(cfgDir);
-                Shutdown(code);
-                return;
-            }
-        }
+        // NOTE: --mcp-server mode is handled entirely in Program.Main BEFORE
+        // WPF starts (so the MCP child has no window / no taskbar entry). By
+        // the time we reach OnStartup we're always the real GUI app.
 
         // Single-instance check FIRST — no point spinning up DI if we're a duplicate.
         _instanceMutex = new Mutex(initiallyOwned: false, MutexName, out bool createdNew);
@@ -177,57 +161,6 @@ public partial class App : Application
         window.Show();
 
         base.OnStartup(e);
-    }
-
-    /// <summary>
-    /// Headless MCP-server entry point. Loads config from the given install
-    /// dir (or the pointer / exe dir if null), builds the same ToolRegistry
-    /// the UI uses, and serves MCP over stdin/stdout until the parent (the
-    /// claude CLI) closes the pipe. Returns a process exit code.
-    /// </summary>
-    private static int RunMcpServerBlocking(string? installDirArg)
-    {
-        try
-        {
-            var installDir = installDirArg;
-            if (string.IsNullOrWhiteSpace(installDir) || !Directory.Exists(installDir))
-                installDir = InstallLocator.LoadExisting()?.InstallDir;
-            if (string.IsNullOrWhiteSpace(installDir) || !Directory.Exists(installDir))
-                installDir = AppContext.BaseDirectory;
-
-            var cfg = new ConfigService().Load(installDir);
-
-            // Minimal logger factory — log to stderr so it never corrupts the
-            // stdout JSON-RPC stream. (Console logger writes to stderr by
-            // default in this configuration would still be risky, so we keep
-            // it quiet: warnings+ only, and the MCP server logs via it.)
-            using var lf = LoggerFactory.Create(b => b
-                .AddConsole(o => o.LogToStandardErrorThreshold = LogLevel.Trace)
-                .SetMinimumLevel(LogLevel.Warning));
-
-            var registry = ToolBuilder.Build(cfg, installDir, lf);
-            var server = new Jarvis.Core.Mcp.McpStdioServer(
-                registry, lf.CreateLogger<Jarvis.Core.Mcp.McpStdioServer>());
-
-            // Explicit UTF-8 standard streams. A WPF WinExe has no console, but
-            // Console.OpenStandardInput/Output still return the redirected pipes
-            // the claude CLI gave us. No BOM on output.
-            using var stdin = new StreamReader(
-                Console.OpenStandardInput(), new System.Text.UTF8Encoding(false));
-            using var stdout = new StreamWriter(
-                Console.OpenStandardOutput(), new System.Text.UTF8Encoding(false)) { AutoFlush = false };
-
-            using var cts = new CancellationTokenSource();
-            server.RunAsync(stdin, stdout, cts.Token).GetAwaiter().GetResult();
-            return 0;
-        }
-        catch (Exception ex)
-        {
-            // Last-ditch: write to stderr so the failure is at least visible in
-            // claude --debug output. Never write to stdout (would corrupt MCP).
-            try { Console.Error.WriteLine($"[jarvis-mcp] fatal: {ex}"); } catch { }
-            return 1;
-        }
     }
 
     protected override void OnExit(ExitEventArgs e)

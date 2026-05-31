@@ -7,9 +7,12 @@
     <LangVersion>latest</LangVersion>
     <RootNamespace>Jarvis.App</RootNamespace>
     <AssemblyName>Jarvis-NET</AssemblyName>
-    <Version>0.6.3</Version>
-    <AssemblyVersion>0.6.3.0</AssemblyVersion>
-    <FileVersion>0.6.3.0</FileVersion>
+    <!-- Custom entry point so the MCP server mode is handled before WPF
+         starts (no window / no taskbar for the MCP child process). -->
+    <StartupObject>Jarvis.App.Program</StartupObject>
+    <Version>0.6.4</Version>
+    <AssemblyVersion>0.6.4.0</AssemblyVersion>
+    <FileVersion>0.6.4.0</FileVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- Single-file self-contained publish settings (used by `dotnet publish`): -->
     <PublishSingleFile>true</PublishSingleFile>
