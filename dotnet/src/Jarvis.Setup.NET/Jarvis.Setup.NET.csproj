@@ -5,9 +5,9 @@
     <LangVersion>latest</LangVersion>
     <RootNamespace>Jarvis.Setup.NET</RootNamespace>
     <AssemblyName>Jarvis.Setup.NET</AssemblyName>
-    <Version>0.6.0</Version>
-    <AssemblyVersion>0.6.0.0</AssemblyVersion>
-    <FileVersion>0.6.0.0</FileVersion>
+    <Version>0.6.1</Version>
+    <AssemblyVersion>0.6.1.0</AssemblyVersion>
+    <FileVersion>0.6.1.0</FileVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="YamlDotNet" Version="16.2.1" />

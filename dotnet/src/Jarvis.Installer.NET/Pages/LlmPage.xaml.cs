@@ -91,31 +91,9 @@ public partial class LlmPage : Page, IWizardPage
         ApiKeyOptionalLabel.Visibility =
             be == "openai_compat" ? Visibility.Visible : Visibility.Collapsed;
 
-        // The .NET edition only ships openai_compat in 0.3.x — warn for the others.
-        if (be == "openai_compat")
-        {
-            UnsupportedNotice.Visibility = Visibility.Collapsed;
-        }
-        else
-        {
-            UnsupportedNotice.Visibility = Visibility.Visible;
-            UnsupportedText.Text = be switch
-            {
-                "claude_agent" =>
-                    "Heads-up: the Claude (Code CLI) backend isn't wired up in the .NET " +
-                    "edition yet — it lands in v0.5.0. Your choice will be saved to " +
-                    "config.yaml so Jarvis picks it up automatically once the runtime " +
-                    "support ships. In the meantime, pick OpenAI-compatible to get a " +
-                    "working install today.",
-                "claude_api" =>
-                    "Heads-up: the Claude (Anthropic API) backend isn't wired up in the " +
-                    ".NET edition yet — it lands in v0.5.0. Your API key will be saved to " +
-                    "config.yaml so Jarvis picks it up automatically once the runtime " +
-                    "support ships. In the meantime, pick OpenAI-compatible to get a " +
-                    "working install today.",
-                _ => "",
-            };
-        }
+        // All three backends are shipped as of v0.6.0 — no more "lands in
+        // v0.5.0" warning. Notice stays hidden.
+        UnsupportedNotice.Visibility = Visibility.Collapsed;
 
         // Model dropdown items
         ModelCombo.Items.Clear();
@@ -228,24 +206,62 @@ public partial class LlmPage : Page, IWizardPage
 
         _testCts?.Cancel();
         _testCts = new CancellationTokenSource();
+        var localCts = _testCts;
 
         TestBtn.IsEnabled = false;
         TestStatus.Text = "Testing...";
         TestStatus.Foreground = Brushes.Gray;
         try
         {
-            var result = await ApiTester.TestAsync(_state.Config.Llm, _testCts.Token);
-            TestStatus.Text = result.Message;
-            TestStatus.Foreground = result.Ok ? Brushes.Green : Brushes.Firebrick;
+            var result = await ApiTester.TestAsync(_state.Config.Llm, localCts.Token);
+            // Don't touch the UI if THIS test was cancelled out from under us —
+            // either a newer test took over or the page got navigated away.
+            if (!localCts.IsCancellationRequested)
+            {
+                TestStatus.Text = result.Message;
+                TestStatus.Foreground = result.Ok ? Brushes.Green : Brushes.Firebrick;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Test was cancelled — caller (page nav or another Test click)
+            // already owns the next UI state. Don't write anything.
+        }
+        catch (Exception ex)
+        {
+            // Defensive: never let an unhandled exception escape an async void
+            // handler — that crashes the entire WPF process (which is what
+            // caused the user's installer crash when they clicked Next while
+            // a slow Ollama test was still running).
+            if (!localCts.IsCancellationRequested)
+            {
+                try
+                {
+                    TestStatus.Text = $"Test failed: {ex.Message}";
+                    TestStatus.Foreground = Brushes.Firebrick;
+                }
+                catch { /* page may be gone */ }
+            }
         }
         finally
         {
-            TestBtn.IsEnabled = true;
+            // Only re-enable if THIS test is still the latest one. Otherwise
+            // a newer test (or a navigated-away page state) owns the button.
+            if (ReferenceEquals(_testCts, localCts))
+            {
+                try { TestBtn.IsEnabled = true; } catch { /* page gone */ }
+            }
         }
     }
 
     public Task<bool> OnNextAsync()
     {
+        // Cancel any in-flight Test Connection BEFORE we allow navigation.
+        // Without this, the test keeps running on the dispatcher and its
+        // continuation crashes the app when it touches the navigated-away
+        // page's UI elements. This was the v0.6.0 installer crash bug.
+        try { _testCts?.Cancel(); } catch { }
+
         if (_state == null) return Task.FromResult(true);
         var llm = _state.Config.Llm;
 

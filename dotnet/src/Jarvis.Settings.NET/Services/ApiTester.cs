@@ -104,7 +104,11 @@ public static class ApiTester
         if (!isLocal && string.IsNullOrWhiteSpace(cfg.ApiKey))
             return new Result(false, "API key is empty (required for non-local URLs).");
 
-        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+        // Local servers (Ollama especially) load the model on first request,
+        // which can take 30-40s on a cold start. Use a generous timeout for
+        // local URLs; remote APIs answer fast.
+        var timeout = isLocal ? TimeSpan.FromSeconds(90) : TimeSpan.FromSeconds(20);
+        using var http = new HttpClient { Timeout = timeout };
         var key = string.IsNullOrWhiteSpace(cfg.ApiKey) ? "not-needed" : cfg.ApiKey;
         http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", key);
 

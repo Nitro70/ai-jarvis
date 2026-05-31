@@ -164,19 +164,44 @@ public partial class LlmView : UserControl
 
         _testCts?.Cancel();
         _testCts = new CancellationTokenSource();
+        var localCts = _testCts;
 
         TestBtn.IsEnabled = false;
         TestStatus.Text = "Testing...";
         TestStatus.Foreground = Brushes.Gray;
         try
         {
-            var result = await ApiTester.TestAsync(_cfg.Llm, _testCts.Token);
-            TestStatus.Text = result.Message;
-            TestStatus.Foreground = result.Ok ? Brushes.Green : Brushes.Firebrick;
+            var result = await ApiTester.TestAsync(_cfg.Llm, localCts.Token);
+            if (!localCts.IsCancellationRequested)
+            {
+                TestStatus.Text = result.Message;
+                TestStatus.Foreground = result.Ok ? Brushes.Green : Brushes.Firebrick;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled (window closed, tab switched, new test). Stay silent.
+        }
+        catch (Exception ex)
+        {
+            // Defensive: never let an unhandled exception escape async void —
+            // that crashes the entire app process.
+            if (!localCts.IsCancellationRequested)
+            {
+                try
+                {
+                    TestStatus.Text = $"Test failed: {ex.Message}";
+                    TestStatus.Foreground = Brushes.Firebrick;
+                }
+                catch { /* view may be gone */ }
+            }
         }
         finally
         {
-            TestBtn.IsEnabled = true;
+            if (ReferenceEquals(_testCts, localCts))
+            {
+                try { TestBtn.IsEnabled = true; } catch { /* view gone */ }
+            }
         }
     }
 }
