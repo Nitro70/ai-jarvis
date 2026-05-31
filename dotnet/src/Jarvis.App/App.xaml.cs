@@ -91,7 +91,7 @@ public partial class App : Application
                 // backends now have C# ports as of v1.0.0.
                 services.AddSingleton<ILlmBackend>(sp =>
                 {
-                    var systemPrompt = cfg.Persona.SystemPrompt;
+                    var systemPrompt = cfg.Persona.EffectiveSystemPrompt;
                     var tools = sp.GetRequiredService<ToolRegistry>();
                     var lf = sp.GetRequiredService<ILoggerFactory>();
                     return cfg.Llm.Backend switch
