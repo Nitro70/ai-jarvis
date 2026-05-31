@@ -153,6 +153,10 @@ public class ToolToggle
 
 public class MusicYtmdConfig : ToolToggle
 {
+    // Off by default — requires the th-ch/youtube-music app installed
+    // separately. Matches the Python edition's config.example.yaml.
+    public MusicYtmdConfig() { Enabled = false; }
+
     [YamlMember(Alias = "port")]
     public int Port { get; set; } = 26538;
 
@@ -162,6 +166,11 @@ public class MusicYtmdConfig : ToolToggle
 
 public class DangerousShellConfig : ToolToggle
 {
+    // Off by default — this is the DANGER ZONE (full shell + file access).
+    // Double-gated: both Enabled AND IUnderstandTheRisks must be true. Neither
+    // should ever default to on. Matches the Python edition.
+    public DangerousShellConfig() { Enabled = false; }
+
     [YamlMember(Alias = "i_understand_the_risks")]
     public bool IUnderstandTheRisks { get; set; } = false;
 
