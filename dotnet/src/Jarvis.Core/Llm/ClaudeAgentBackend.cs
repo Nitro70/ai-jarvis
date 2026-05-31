@@ -28,6 +28,12 @@
 //   * No `effort` / `thinking` knobs. The CLI exposes `--effort` but it's
 //     less granular than the SDK's typed config; we default to whatever
 //     the CLI does (medium), which gives reasonable latency for voice.
+//
+//   * Auth: uses the user's existing Claude Code login (OAuth / keychain),
+//     exactly like the interactive CLI and the Python SDK. We deliberately
+//     do NOT pass --bare (which would force ANTHROPIC_API_KEY-only auth and
+//     re-prompt subscription users to log in). See the per-call comment in
+//     SendAsync for the full flag rationale.
 
 using System;
 using System.Collections.Generic;
@@ -146,15 +152,33 @@ public sealed class ClaudeAgentBackend : ILlmBackend
         // Build the argv. `--print` (a.k.a. -p) is non-interactive mode.
         // `--output-format stream-json` makes the CLI emit one JSON object
         // per line; the CLI insists on `--verbose` when stream-json is paired
-        // with --print, so we set both. `--bare` skips hooks / plugin sync /
-        // CLAUDE.md auto-discovery / keychain reads — we want a snappy fresh
-        // process per turn, not the full developer-IDE behavior. The CLI is
-        // strict about flag order? — flags before the positional prompt arg.
+        // with --print, so we set both.
         //
-        // We do NOT pass the user message as a positional arg because (a) it
-        // can contain shell-unsafe characters in many languages, and (b) we
-        // want stdin streaming to remain available for a future `--continue`
-        // path. Instead, prompt comes in via stdin and `--print` reads it.
+        // CRITICAL: we do NOT pass `--bare`. The earlier version did, and
+        // `--bare` explicitly disables OAuth + keychain credential reads
+        // ("Anthropic auth is strictly ANTHROPIC_API_KEY or apiKeyHelper") —
+        // which meant a logged-in Claude subscription user got prompted to log
+        // in again because the CLI couldn't see their existing OAuth session.
+        // Without --bare the CLI reads the same credentials the interactive
+        // CLI and the Python claude_agent_sdk use, so the user's existing
+        // login Just Works with no re-auth.
+        //
+        // To keep the per-turn process snappy + chat-only WITHOUT touching
+        // auth, we instead use targeted flags:
+        //   --tools ""              disable all built-in tools (Bash/Edit/Read/
+        //                           etc.) — this backend is conversational only
+        //                           (Jarvis's own ToolRegistry isn't exposed to
+        //                           Claude Code), and disabling tools also means
+        //                           no permission prompts can hang a -p run.
+        //   --strict-mcp-config     with no --mcp-config, this loads ZERO MCP
+        //                           servers — skips the (often slow) attempts to
+        //                           connect the user's configured MCP servers.
+        //   --no-session-persistence don't write session files for throwaway
+        //                           voice turns.
+        //
+        // We do NOT pass the user message as a positional arg because it can
+        // contain shell-unsafe characters in many languages. Instead the prompt
+        // comes in via stdin and `--print` reads it.
         var psi = new ProcessStartInfo
         {
             FileName = _claudeExe,
@@ -165,12 +189,18 @@ public sealed class ClaudeAgentBackend : ILlmBackend
             CreateNoWindow = true,
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8,
+            // Run from a neutral dir so the CLI doesn't auto-discover a stray
+            // CLAUDE.md from whatever the app's working directory happens to be.
+            WorkingDirectory = Path.GetTempPath(),
         };
         psi.ArgumentList.Add("--print");
         psi.ArgumentList.Add("--output-format");
         psi.ArgumentList.Add("stream-json");
         psi.ArgumentList.Add("--verbose");
-        psi.ArgumentList.Add("--bare");
+        psi.ArgumentList.Add("--tools");
+        psi.ArgumentList.Add("");                 // disable all built-in tools
+        psi.ArgumentList.Add("--strict-mcp-config"); // no --mcp-config => zero MCP servers
+        psi.ArgumentList.Add("--no-session-persistence");
         if (_model is not null)
         {
             psi.ArgumentList.Add("--model");
