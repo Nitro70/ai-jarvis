@@ -26,6 +26,26 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        // --mcp-server mode: instead of showing the WPF window, run as a
+        // headless MCP stdio server exposing Jarvis's tools to Claude Code.
+        // The claude_agent backend launches us this way (via --mcp-config) so
+        // Claude Code can call play_music / open_app / etc. Must run BEFORE
+        // the single-instance mutex (this is a short-lived child process of
+        // the claude CLI and must NOT collide with a running UI instance).
+        for (int i = 0; i < e.Args.Length; i++)
+        {
+            if (string.Equals(e.Args[i], "--mcp-server", StringComparison.OrdinalIgnoreCase))
+            {
+                string? cfgDir = null;
+                if (i + 2 < e.Args.Length &&
+                    string.Equals(e.Args[i + 1], "--install-dir", StringComparison.OrdinalIgnoreCase))
+                    cfgDir = e.Args[i + 2];
+                int code = RunMcpServerBlocking(cfgDir);
+                Shutdown(code);
+                return;
+            }
+        }
+
         // Single-instance check FIRST — no point spinning up DI if we're a duplicate.
         _instanceMutex = new Mutex(initiallyOwned: false, MutexName, out bool createdNew);
         try { _ownsMutex = createdNew || _instanceMutex.WaitOne(0, exitContext: false); }
@@ -78,72 +98,10 @@ public partial class App : Application
                 // logger is a no-op for WinExe (no console), so for now log
                 // events are visible only via debugger output.
 
-                // Tools — built from config toggles.
+                // Tools — built from config toggles via the shared ToolBuilder
+                // (same factory the --mcp-server mode uses, so they can't drift).
                 services.AddSingleton<ToolRegistry>(sp =>
-                {
-                    var log = sp.GetRequiredService<ILoggerFactory>();
-                    var tools = new System.Collections.Generic.List<ITool>();
-                    if (cfg.Tools.SystemInfo.Enabled)
-                    {
-                        tools.Add(new CurrentTimeTool(log.CreateLogger<CurrentTimeTool>()));
-                        tools.Add(new GetWeatherTool(log.CreateLogger<GetWeatherTool>()));
-                    }
-                    if (cfg.Tools.Memory.Enabled)
-                    {
-                        var memPath = Path.Combine(installDir,
-                            cfg.Persona.MemoryFile ?? "memory.md");
-                        tools.Add(new RememberTool(memPath,
-                            log.CreateLogger<RememberTool>()));
-                        tools.Add(new ForgetTool(memPath,
-                            log.CreateLogger<ForgetTool>()));
-                    }
-                    if (cfg.Tools.WebBrowser.Enabled)
-                    {
-                        tools.Add(new OpenUrlTool(log.CreateLogger<OpenUrlTool>()));
-                        tools.Add(new PlayYoutubeVideoTool(log.CreateLogger<PlayYoutubeVideoTool>()));
-                    }
-                    if (cfg.Tools.WindowsApps.Enabled)
-                    {
-                        tools.Add(new WindowsAppsTool(log.CreateLogger<WindowsAppsTool>()));
-                    }
-                    if (cfg.Tools.WindowsState.Enabled)
-                    {
-                        // WindowsStateTool's subagent split this into 6 tools —
-                        // minimize/maximize/restore/focus/close/list. Lazy-start the
-                        // foreground tracker the first time any of them is invoked.
-                        tools.Add(new MinimizeWindowTool(log.CreateLogger<MinimizeWindowTool>()));
-                        tools.Add(new MaximizeWindowTool(log.CreateLogger<MaximizeWindowTool>()));
-                        tools.Add(new RestoreWindowTool(log.CreateLogger<RestoreWindowTool>()));
-                        tools.Add(new FocusWindowTool(log.CreateLogger<FocusWindowTool>()));
-                        tools.Add(new CloseWindowTool(log.CreateLogger<CloseWindowTool>()));
-                        tools.Add(new ListOpenWindowsTool(log.CreateLogger<ListOpenWindowsTool>()));
-                    }
-                    if (cfg.Tools.MusicYtmd.Enabled)
-                    {
-                        // MusicYtmdTool is composite — one parent class that owns the
-                        // shared YtmdClient and exposes 7 sub-tools via .Tools.
-                        var ytmd = new MusicYtmdTool(
-                            cfg.Tools.MusicYtmd.Port,
-                            cfg.Tools.MusicYtmd.ExePath,
-                            installDir,
-                            log.CreateLogger<MusicYtmdTool>());
-                        foreach (var t in ytmd.Tools) tools.Add(t);
-                    }
-                    // Dangerous shell — double-gated. ONLY register if BOTH enabled
-                    // AND ack are true. Either alone is not enough.
-                    if (DangerousShellTools.IsEnabled(cfg.Tools.DangerousShell))
-                    {
-                        tools.Add(new RunShellTool(cfg.Tools.DangerousShell,
-                            log.CreateLogger<RunShellTool>()));
-                        tools.Add(new ReadFileTool(cfg.Tools.DangerousShell,
-                            log.CreateLogger<ReadFileTool>()));
-                        tools.Add(new WriteFileTool(cfg.Tools.DangerousShell,
-                            log.CreateLogger<WriteFileTool>()));
-                        tools.Add(new ListDirectoryTool(cfg.Tools.DangerousShell,
-                            log.CreateLogger<ListDirectoryTool>()));
-                    }
-                    return new ToolRegistry(tools);
-                });
+                    ToolBuilder.Build(cfg, installDir, sp.GetRequiredService<ILoggerFactory>()));
 
                 // Backend — switch on cfg.Llm.Backend. All three Python-edition
                 // backends now have C# ports as of v1.0.0.
@@ -219,6 +177,57 @@ public partial class App : Application
         window.Show();
 
         base.OnStartup(e);
+    }
+
+    /// <summary>
+    /// Headless MCP-server entry point. Loads config from the given install
+    /// dir (or the pointer / exe dir if null), builds the same ToolRegistry
+    /// the UI uses, and serves MCP over stdin/stdout until the parent (the
+    /// claude CLI) closes the pipe. Returns a process exit code.
+    /// </summary>
+    private static int RunMcpServerBlocking(string? installDirArg)
+    {
+        try
+        {
+            var installDir = installDirArg;
+            if (string.IsNullOrWhiteSpace(installDir) || !Directory.Exists(installDir))
+                installDir = InstallLocator.LoadExisting()?.InstallDir;
+            if (string.IsNullOrWhiteSpace(installDir) || !Directory.Exists(installDir))
+                installDir = AppContext.BaseDirectory;
+
+            var cfg = new ConfigService().Load(installDir);
+
+            // Minimal logger factory — log to stderr so it never corrupts the
+            // stdout JSON-RPC stream. (Console logger writes to stderr by
+            // default in this configuration would still be risky, so we keep
+            // it quiet: warnings+ only, and the MCP server logs via it.)
+            using var lf = LoggerFactory.Create(b => b
+                .AddConsole(o => o.LogToStandardErrorThreshold = LogLevel.Trace)
+                .SetMinimumLevel(LogLevel.Warning));
+
+            var registry = ToolBuilder.Build(cfg, installDir, lf);
+            var server = new Jarvis.Core.Mcp.McpStdioServer(
+                registry, lf.CreateLogger<Jarvis.Core.Mcp.McpStdioServer>());
+
+            // Explicit UTF-8 standard streams. A WPF WinExe has no console, but
+            // Console.OpenStandardInput/Output still return the redirected pipes
+            // the claude CLI gave us. No BOM on output.
+            using var stdin = new StreamReader(
+                Console.OpenStandardInput(), new System.Text.UTF8Encoding(false));
+            using var stdout = new StreamWriter(
+                Console.OpenStandardOutput(), new System.Text.UTF8Encoding(false)) { AutoFlush = false };
+
+            using var cts = new CancellationTokenSource();
+            server.RunAsync(stdin, stdout, cts.Token).GetAwaiter().GetResult();
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            // Last-ditch: write to stderr so the failure is at least visible in
+            // claude --debug output. Never write to stdout (would corrupt MCP).
+            try { Console.Error.WriteLine($"[jarvis-mcp] fatal: {ex}"); } catch { }
+            return 1;
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)

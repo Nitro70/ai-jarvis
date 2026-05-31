@@ -43,6 +43,7 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using Jarvis.Core.Tools;
@@ -70,15 +71,20 @@ public sealed class ClaudeAgentBackend : ILlmBackend
     private readonly string? _model;
     private readonly string _systemPrompt;
     private readonly ILogger<ClaudeAgentBackend> _log;
+    private readonly int _toolCount;
+    private readonly string _installDir;
+    private string? _mcpConfigPath;  // lazily written temp file
 
     public ClaudeAgentBackend(
         InstallConfig cfg,
         string systemPrompt,
-        ToolRegistry tools,   // accepted-but-ignored — see class XML doc
+        ToolRegistry tools,
         ILogger<ClaudeAgentBackend> log)
     {
         _log = log;
         _systemPrompt = systemPrompt ?? "";
+        _toolCount = tools?.AllSchemas.Count ?? 0;
+        _installDir = cfg?.InstallDir ?? AppContext.BaseDirectory;
 
         // The Python backend defaulted to claude-sonnet-4-6 when no model was
         // set. Match that. Empty string => let the CLI pick whatever the user
@@ -92,8 +98,77 @@ public sealed class ClaudeAgentBackend : ILlmBackend
               + "sign in, then restart Jarvis.");
 
         _log.LogInformation(
-            "Claude Agent backend ready (exe={Exe}, model={Model})",
-            _claudeExe, _model ?? "<cli default>");
+            "Claude Agent backend ready (exe={Exe}, model={Model}, tools={Tools})",
+            _claudeExe, _model ?? "<cli default>", _toolCount);
+    }
+
+    /// <summary>
+    /// Path to the running Jarvis-NET.exe — used as the MCP server command so
+    /// Claude Code can call Jarvis's tools via <c>Jarvis-NET.exe --mcp-server</c>.
+    /// </summary>
+    private static string? JarvisExePath()
+    {
+        try
+        {
+            var p = Process.GetCurrentProcess().MainModule?.FileName;
+            if (!string.IsNullOrEmpty(p) && File.Exists(p)) return p;
+        }
+        catch { }
+        // Fallback: look next to this assembly.
+        try
+        {
+            var guess = Path.Combine(AppContext.BaseDirectory, "Jarvis-NET.exe");
+            if (File.Exists(guess)) return guess;
+        }
+        catch { }
+        return null;
+    }
+
+    /// <summary>
+    /// Write (once) a temp mcp-config.json that registers Jarvis's tools as an
+    /// MCP server. Returns the path, or null if we can't expose tools (no
+    /// tools enabled, or we can't locate Jarvis-NET.exe — in which case the
+    /// backend falls back to chat-only).
+    /// </summary>
+    private string? EnsureMcpConfig()
+    {
+        if (_toolCount == 0) return null;
+        if (_mcpConfigPath is not null && File.Exists(_mcpConfigPath)) return _mcpConfigPath;
+
+        var exe = JarvisExePath();
+        if (exe is null)
+        {
+            _log.LogWarning("Can't locate Jarvis-NET.exe for the MCP bridge — claude_agent will be chat-only.");
+            return null;
+        }
+
+        // { "mcpServers": { "jarvis": { "command": <exe>, "args": [...] } } }
+        var config = new JsonObject
+        {
+            ["mcpServers"] = new JsonObject
+            {
+                ["jarvis"] = new JsonObject
+                {
+                    ["command"] = exe,
+                    ["args"] = new JsonArray("--mcp-server", "--install-dir", _installDir),
+                },
+            },
+        };
+
+        var path = Path.Combine(Path.GetTempPath(), "jarvis-mcp-config.json");
+        try
+        {
+            File.WriteAllText(path, config.ToJsonString(), new UTF8Encoding(false));
+            _mcpConfigPath = path;
+            _log.LogInformation("Wrote MCP config exposing {Count} tools to Claude Code: {Path}",
+                _toolCount, path);
+            return path;
+        }
+        catch (Exception e)
+        {
+            _log.LogWarning(e, "Failed to write MCP config — claude_agent will be chat-only.");
+            return null;
+        }
     }
 
     /// <summary>
@@ -198,9 +273,39 @@ public sealed class ClaudeAgentBackend : ILlmBackend
         psi.ArgumentList.Add("stream-json");
         psi.ArgumentList.Add("--verbose");
         psi.ArgumentList.Add("--tools");
-        psi.ArgumentList.Add("");                 // disable all built-in tools
-        psi.ArgumentList.Add("--strict-mcp-config"); // no --mcp-config => zero MCP servers
+        psi.ArgumentList.Add("");                 // disable built-in tools (Bash/Edit/Read/...)
         psi.ArgumentList.Add("--no-session-persistence");
+        // Suppress the user's personal Claude Code environment so it doesn't
+        // leak into Jarvis's replies: --setting-sources "" loads no settings.json
+        // (no hooks), --disable-slash-commands loads no skills/plugins. Without
+        // these, a user's SessionStart hooks + superpowers plugin injected
+        // "I'll check for any relevant skills..." into every Jarvis reply.
+        psi.ArgumentList.Add("--setting-sources");
+        psi.ArgumentList.Add("");
+        psi.ArgumentList.Add("--disable-slash-commands");
+
+        // Expose Jarvis's tools to Claude Code via an MCP bridge (the C#
+        // equivalent of the Python edition's create_sdk_mcp_server). When set,
+        // Claude Code can call play_music / open_app / etc. --strict-mcp-config
+        // means ONLY our jarvis server loads (not the user's other MCP servers),
+        // and --allowed-tools pre-approves the jarvis tools so they run without
+        // a permission prompt in headless -p mode.
+        var mcpConfig = EnsureMcpConfig();
+        if (mcpConfig is not null)
+        {
+            psi.ArgumentList.Add("--mcp-config");
+            psi.ArgumentList.Add(mcpConfig);
+            psi.ArgumentList.Add("--strict-mcp-config");
+            psi.ArgumentList.Add("--allowed-tools");
+            psi.ArgumentList.Add("mcp__jarvis__*");
+        }
+        else
+        {
+            // No tools to expose — keep MCP off entirely (skip the user's
+            // configured MCP servers too, for speed + isolation).
+            psi.ArgumentList.Add("--strict-mcp-config");
+        }
+
         if (_model is not null)
         {
             psi.ArgumentList.Add("--model");
